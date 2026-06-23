@@ -1,0 +1,1424 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>人物关系图</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            min-height: 100vh;
+            overflow: hidden;
+        }
+        
+        #app {
+            display: flex;
+            height: 100vh;
+        }
+        
+        #canvas-container {
+            flex: 1;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        #canvas {
+            width: 100%;
+            height: 100%;
+            cursor: grab;
+        }
+        
+        #canvas:active {
+            cursor: grabbing;
+        }
+        
+        /* 侧边栏 */
+        #sidebar {
+            width: 320px;
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border-left: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 20px;
+            overflow-y: auto;
+            color: #fff;
+        }
+        
+        .sidebar-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 20px;
+            color: #fff;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .sidebar-title::before {
+            content: "✦";
+            color: #ffd700;
+        }
+        
+        .btn-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .btn {
+            flex: 1;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+        
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.15);
+        }
+        
+        .btn-danger {
+            background: rgba(255, 59, 48, 0.2);
+            color: #ff6b6b;
+            border: 1px solid rgba(255, 59, 48, 0.3);
+        }
+        
+        .btn-danger:hover {
+            background: rgba(255, 59, 48, 0.3);
+        }
+        
+        /* 人物列表 */
+        .section-title {
+            font-size: 13px;
+            color: rgba(255, 255, 255, 0.6);
+            margin: 20px 0 10px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .character-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        
+        .character-item {
+            padding: 12px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: 1px solid transparent;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .character-item:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: rgba(255, 255, 255, 0.2);
+        }
+        
+        .character-item.selected {
+            background: rgba(102, 126, 234, 0.2);
+            border-color: #667eea;
+        }
+        
+        .character-item-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background-size: cover;
+            background-position: center;
+            flex-shrink: 0;
+        }
+        
+        .character-item-info {
+            flex: 1;
+            min-width: 0;
+        }
+        
+        .character-name {
+            font-weight: 500;
+            margin-bottom: 4px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        
+        .character-desc {
+            font-size: 12px;
+            color: rgba(255, 255, 255, 0.5);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        
+        /* 弹窗 */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .modal.active {
+            display: flex;
+        }
+        
+        .modal-content {
+            background: #1e1e2e;
+            border-radius: 12px;
+            padding: 24px;
+            width: 480px;
+            max-width: 90%;
+            color: #fff;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+        
+        .modal-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 20px;
+        }
+        
+        .form-group {
+            margin-bottom: 16px;
+        }
+        
+        .form-label {
+            display: block;
+            font-size: 13px;
+            color: rgba(255, 255, 255, 0.7);
+            margin-bottom: 6px;
+        }
+        
+        .form-input {
+            width: 100%;
+            padding: 10px 12px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 6px;
+            color: #fff;
+            font-size: 14px;
+        }
+        
+        .form-input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        .form-select {
+            width: 100%;
+            padding: 10px 12px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 6px;
+            color: #fff;
+            font-size: 14px;
+        }
+        
+        /* 头像上传 */
+        .avatar-upload {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 16px;
+        }
+        
+        .avatar-preview {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 32px;
+            color: rgba(255, 255, 255, 0.3);
+            background-size: cover;
+            background-position: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: 2px dashed rgba(255, 255, 255, 0.2);
+        }
+        
+        .avatar-preview:hover {
+            border-color: #667eea;
+            color: #667eea;
+        }
+        
+        .avatar-preview.has-image {
+            border: none;
+        }
+        
+        .avatar-upload-info {
+            flex: 1;
+        }
+        
+        .avatar-upload-btn {
+            padding: 8px 16px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 6px;
+            color: #fff;
+            cursor: pointer;
+            font-size: 13px;
+            transition: all 0.2s;
+        }
+        
+        .avatar-upload-btn:hover {
+            background: rgba(255, 255, 255, 0.15);
+        }
+        
+        .color-picker {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        
+        .color-option {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            cursor: pointer;
+            border: 2px solid transparent;
+            transition: all 0.2s;
+        }
+        
+        .color-option:hover {
+            transform: scale(1.1);
+        }
+        
+        .color-option.selected {
+            border-color: #fff;
+            box-shadow: 0 0 12px currentColor;
+        }
+        
+        .modal-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+        
+        /* 关系类型选择 */
+        .relation-types {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        
+        .relation-type-btn {
+            padding: 8px 16px;
+            border-radius: 20px;
+            border: none;
+            cursor: pointer;
+            font-size: 13px;
+            transition: all 0.2s;
+            background: rgba(255, 255, 255, 0.1);
+            color: #fff;
+        }
+        
+        .relation-type-btn.selected {
+            background: #667eea;
+        }
+        
+        /* 工具栏 */
+        #toolbar {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 10px;
+            padding: 12px;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .tool-btn {
+            width: 44px;
+            height: 44px;
+            border-radius: 10px;
+            border: none;
+            background: rgba(255, 255, 255, 0.1);
+            color: #fff;
+            cursor: pointer;
+            font-size: 20px;
+            transition: all 0.2s;
+        }
+        
+        .tool-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+        
+        .tool-btn.active {
+            background: #667eea;
+        }
+        
+        /* 帮助提示 */
+        #help-hint {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.7);
+            color: #fff;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-size: 13px;
+            opacity: 0.8;
+        }
+        
+        /* 关系详情面板 */
+        #relation-detail {
+            background: rgba(30, 30, 46, 0.95);
+            border-radius: 12px;
+            padding: 16px;
+            margin-top: 15px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            display: none;
+        }
+        
+        #relation-detail.active {
+            display: block;
+        }
+        
+        .relation-detail-title {
+            font-size: 14px;
+            color: rgba(255, 255, 255, 0.7);
+            margin-bottom: 10px;
+        }
+        
+        .relation-item {
+            padding: 10px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 8px;
+            margin-bottom: 8px;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .relation-item:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+        
+        .relation-target {
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+        
+        .relation-desc {
+            color: rgba(255, 255, 255, 0.6);
+        }
+        
+        /* 双向关系编辑 */
+        .bidirectional-editor {
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 8px;
+            padding: 12px;
+            margin-top: 12px;
+        }
+        
+        .direction-label {
+            font-size: 13px;
+            color: rgba(255, 255, 255, 0.6);
+            margin-bottom: 6px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        
+        .direction-label .char-name {
+            color: #667eea;
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <div id="canvas-container">
+            <canvas id="canvas"></canvas>
+        </div>
+        
+        <div id="sidebar">
+            <div class="sidebar-title">人物关系图</div>
+            
+            <div class="btn-group">
+                <button class="btn btn-primary" onclick="openAddCharacter()">+ 人物</button>
+                <button class="btn btn-secondary" onclick="openAddRelation()">+ 关系</button>
+            </div>
+            
+            <div class="btn-group">
+                <button class="btn btn-secondary" onclick="saveToFile()">💾 保存</button>
+                <button class="btn btn-secondary" onclick="loadFromFile()">📂 加载</button>
+            </div>
+            
+            <div class="section-title">人物列表</div>
+            <div class="character-list" id="character-list"></div>
+            
+            <div id="relation-detail">
+                <div class="relation-detail-title">选中人物的关系视角</div>
+                <div id="relation-list"></div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 工具栏 -->
+    <div id="toolbar">
+        <button class="tool-btn active" id="tool-select" title="选择" onclick="setTool('select')">☝️</button>
+        <button class="tool-btn" id="tool-add" title="添加人物" onclick="setTool('add')">➕</button>
+        <button class="tool-btn" id="tool-connect" title="连接关系" onclick="setTool('connect')">🔗</button>
+        <button class="tool-btn" id="tool-delete" title="删除" onclick="setTool('delete')">🗑️</button>
+        <button class="tool-btn" id="tool-zoomin" title="放大" onclick="zoomIn()">🔍</button>
+        <button class="tool-btn" id="tool-zoomout" title="缩小" onclick="zoomOut()">🔎</button>
+        <button class="tool-btn" id="tool-reset" title="重置视图" onclick="resetView()">🏠</button>
+    </div>
+    
+    <!-- 帮助提示 -->
+    <div id="help-hint">点击选择人物 | 拖拽移动 | 双击编辑</div>
+    
+    <!-- 添加/编辑人物弹窗 -->
+    <div class="modal" id="character-modal">
+        <div class="modal-content">
+            <div class="modal-title" id="modal-title">添加人物</div>
+            
+            <div class="avatar-upload">
+                <div class="avatar-preview" id="avatar-preview" onclick="document.getElementById('avatar-input').click()">
+                    👤
+                </div>
+                <div class="avatar-upload-info">
+                    <div style="font-size: 14px; margin-bottom: 8px;">上传头像</div>
+                    <button class="avatar-upload-btn" onclick="document.getElementById('avatar-input').click()">选择图片</button>
+                    <button class="avatar-upload-btn" style="margin-left: 8px;" onclick="clearAvatar()">清除</button>
+                    <input type="file" id="avatar-input" accept="image/*" style="display: none;" onchange="handleAvatarUpload(event)">
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label">人物名称</label>
+                <input type="text" class="form-input" id="char-name" placeholder="输入名称">
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label">描述/备注</label>
+                <input type="text" class="form-input" id="char-desc" placeholder="可选">
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label">颜色（无头像时使用）</label>
+                <div class="color-picker" id="color-picker"></div>
+            </div>
+            
+            <div class="modal-actions">
+                <button class="btn btn-secondary" onclick="closeModal()">取消</button>
+                <button class="btn btn-primary" onclick="saveCharacter()">保存</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 添加/编辑关系弹窗 -->
+    <div class="modal" id="relation-modal">
+        <div class="modal-content">
+            <div class="modal-title" id="relation-modal-title">添加关系</div>
+            
+            <div class="form-group">
+                <label class="form-label">人物 A</label>
+                <select class="form-select" id="relation-from" onchange="updateRelationPreview()"></select>
+            </div>
+            
+            <div class="bidirectional-editor">
+                <div class="direction-label">
+                    <span class="char-name" id="from-name-a">A</span> 眼中的 <span class="char-name" id="to-name-a">B</span>：
+                </div>
+                <input type="text" class="form-input" id="relation-desc-ab" placeholder="例如：我的挚友、那个叛徒...">
+            </div>
+            
+            <div class="bidirectional-editor">
+                <div class="direction-label">
+                    <span class="char-name" id="from-name-b">B</span> 眼中的 <span class="char-name" id="to-name-b">A</span>：
+                </div>
+                <input type="text" class="form-input" id="relation-desc-ba" placeholder="例如：值得信赖的人...">
+            </div>
+            
+            <div class="form-group" style="margin-top: 16px;">
+                <label class="form-label">关系类型</label>
+                <div class="relation-types" id="relation-types"></div>
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label">人物 B</label>
+                <select class="form-select" id="relation-to" onchange="updateRelationPreview()"></select>
+            </div>
+            
+            <div class="modal-actions">
+                <button class="btn btn-secondary" onclick="closeModal()">取消</button>
+                <button class="btn btn-primary" onclick="saveRelation()">保存</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ========== 数据结构 ==========
+        let characters = [];
+        let relations = [];
+        let selectedChar = null;
+        let editingCharId = null;
+        let editingRelationId = null;
+        
+        // 视图状态
+        let viewOffset = { x: 0, y: 0 };
+        let zoom = 1;
+        let isDragging = false;
+        let dragTarget = null;
+        let dragStart = { x: 0, y: 0 };
+        let currentTool = 'select';
+        
+        // 连接模式临时状态
+        let connectFrom = null;
+        
+        // 临时头像数据
+        let tempAvatar = null;
+        
+        // 颜色选项
+        const colors = [
+            '#ff6b6b', '#feca57', '#48dbfb', '#1dd1a1', '#5f27cd',
+            '#ff9ff3', '#54a0ff', '#00d2d3', '#ff9f43', '#10ac84'
+        ];
+        
+        // 关系类型
+        const relationTypes = [
+            { name: '家人', color: '#ff6b6b', style: 'solid' },
+            { name: '朋友', color: '#48dbfb', style: 'solid' },
+            { name: '恋人', color: '#ff9ff3', style: 'solid' },
+            { name: '敌人', color: '#5f27cd', style: 'dashed' },
+            { name: '同事', color: '#54a0ff', style: 'solid' },
+            { name: '师生', color: '#00d2d3', style: 'solid' },
+            { name: '其他', color: '#feca57', style: 'dashed' }
+        ];
+        
+        // ========== Canvas 初始化 ==========
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        // 头像图片缓存
+        const avatarCache = new Map();
+        
+        function resizeCanvas() {
+            const container = document.getElementById('canvas-container');
+            canvas.width = container.clientWidth;
+            canvas.height = container.clientHeight;
+            render();
+        }
+        
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+        
+        // ========== 工具函数 ==========
+        function generateId() {
+            return Date.now().toString(36) + Math.random().toString(36).substr(2);
+        }
+        
+        function screenToWorld(x, y) {
+            return {
+                x: (x - viewOffset.x) / zoom,
+                y: (y - viewOffset.y) / zoom
+            };
+        }
+        
+        function worldToScreen(x, y) {
+            return {
+                x: x * zoom + viewOffset.x,
+                y: y * zoom + viewOffset.y
+            };
+        }
+        
+        function loadAvatarImage(avatarData) {
+            return new Promise((resolve) => {
+                if (avatarCache.has(avatarData)) {
+                    resolve(avatarCache.get(avatarData));
+                    return;
+                }
+                
+                const img = new Image();
+                img.onload = () => {
+                    avatarCache.set(avatarData, img);
+                    resolve(img);
+                };
+                img.onerror = () => resolve(null);
+                img.src = avatarData;
+            });
+        }
+        
+        // ========== 渲染 ==========
+        async function render() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            ctx.save();
+            ctx.translate(viewOffset.x, viewOffset.y);
+            ctx.scale(zoom, zoom);
+            
+            // 绘制关系线
+            for (const rel of relations) {
+                const from = characters.find(c => c.id === rel.from);
+                const to = characters.find(c => c.id === rel.to);
+                if (!from || !to) continue;
+                
+                const relType = relationTypes.find(r => r.name === rel.type) || relationTypes[6];
+                
+                // 只有选中人物时才高亮显示相关关系
+                const isHighlighted = selectedChar && (rel.from === selectedChar.id || rel.to === selectedChar.id);
+                
+                // 计算线的角度和偏移
+                const dx = to.x - from.x;
+                const dy = to.y - from.y;
+                const dist = Math.sqrt(dx*dx + dy*dy);
+                const angle = Math.atan2(dy, dx);
+                
+                // 双线显示（稍微偏移）
+                const offset = 6 / zoom;
+                const perpX = Math.cos(angle + Math.PI/2) * offset;
+                const perpY = Math.sin(angle + Math.PI/2) * offset;
+                
+                // 绘制线条
+                ctx.beginPath();
+                ctx.strokeStyle = isHighlighted ? relType.color : relType.color + '60';
+                ctx.lineWidth = (isHighlighted ? 3 : 1.5) / zoom;
+                
+                if (relType.style === 'dashed') {
+                    ctx.setLineDash([5, 5]);
+                } else {
+                    ctx.setLineDash([]);
+                }
+                
+                ctx.moveTo(from.x + perpX, from.y + perpY);
+                ctx.lineTo(to.x + perpX, to.y + perpY);
+                ctx.stroke();
+                
+                // 绘制箭头
+                if (isHighlighted) {
+                    drawArrow(from.x + perpX, from.y + perpY, to.x + perpX, to.y + perpY, relType.color);
+                }
+                
+                // 只在选中人物时显示描述
+                if (isHighlighted) {
+                    const midX = (from.x + to.x) / 2;
+                    const midY = (from.y + to.y) / 2;
+                    
+                    // 显示描述
+                    if (selectedChar.id === rel.from && rel.descAB) {
+                        drawLabel(midX - 15/zoom, midY - 12/zoom, rel.descAB, relType.color);
+                    }
+                    if (selectedChar.id === rel.to && rel.descBA) {
+                        drawLabel(midX + 15/zoom, midY + 12/zoom, rel.descBA, relType.color);
+                    }
+                }
+            }
+            
+            // 绘制人物节点
+            for (const char of characters) {
+                const isSelected = selectedChar && selectedChar.id === char.id;
+                const radius = 40 / zoom;
+                
+                // 光晕效果
+                if (isSelected) {
+                    ctx.beginPath();
+                    ctx.arc(char.x, char.y, radius + 12, 0, Math.PI * 2);
+                    ctx.fillStyle = char.color + '30';
+                    ctx.fill();
+                }
+                
+                // 节点背景
+                ctx.beginPath();
+                ctx.arc(char.x, char.y, radius, 0, Math.PI * 2);
+                
+                if (char.avatar) {
+                    // 有头像
+                    const img = await loadAvatarImage(char.avatar);
+                    if (img) {
+                        ctx.save();
+                        ctx.beginPath();
+                        ctx.arc(char.x, char.y, radius, 0, Math.PI * 2);
+                        ctx.closePath();
+                        ctx.clip();
+                        ctx.drawImage(img, char.x - radius, char.y - radius, radius * 2, radius * 2);
+                        ctx.restore();
+                        
+                        // 边框
+                        ctx.strokeStyle = isSelected ? '#fff' : 'rgba(255,255,255,0.5)';
+                        ctx.lineWidth = isSelected ? 4 / zoom : 2 / zoom;
+                        ctx.stroke();
+                    } else {
+                        drawColorNode(char, radius, isSelected);
+                    }
+                } else {
+                    drawColorNode(char, radius, isSelected);
+                }
+                
+                // 名称
+                ctx.font = `bold ${14 / zoom}px sans-serif`;
+                ctx.fillStyle = '#fff';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(char.name, char.x, char.y + radius + 16 / zoom);
+            }
+            
+            ctx.restore();
+        }
+        
+        function drawColorNode(char, radius, isSelected) {
+            // 渐变填充
+            const gradient = ctx.createRadialGradient(
+                char.x - 5, char.y - 5, 0,
+                char.x, char.y, radius
+            );
+            gradient.addColorStop(0, char.color);
+            gradient.addColorStop(1, adjustColor(char.color, -30));
+            
+            ctx.fillStyle = gradient;
+            ctx.fill();
+            
+            // 边框
+            ctx.strokeStyle = isSelected ? '#fff' : 'rgba(255,255,255,0.3)';
+            ctx.lineWidth = isSelected ? 3 / zoom : 1 / zoom;
+            ctx.stroke();
+            
+            // 名字首字
+            ctx.font = `bold ${18 / zoom}px sans-serif`;
+            ctx.fillStyle = '#fff';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(char.name.charAt(0), char.x, char.y);
+        }
+        
+        function drawArrow(x1, y1, x2, y2, color) {
+            const headLen = 10 / zoom;
+            const dx = x2 - x1;
+            const dy = y2 - y1;
+            const angle = Math.atan2(dy, dx);
+            
+            const radius = 40 / zoom;
+            const dist = Math.sqrt(dx*dx + dy*dy);
+            const ratio = (dist - radius) / dist;
+            const endX = x1 + dx * ratio;
+            const endY = y1 + dy * ratio;
+            
+            ctx.beginPath();
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 2 / zoom;
+            ctx.setLineDash([]);
+            ctx.moveTo(endX, endY);
+            ctx.lineTo(endX - headLen * Math.cos(angle - Math.PI/6), endY - headLen * Math.sin(angle - Math.PI/6));
+            ctx.moveTo(endX, endY);
+            ctx.lineTo(endX - headLen * Math.cos(angle + Math.PI/6), endY - headLen * Math.sin(angle + Math.PI/6));
+            ctx.stroke();
+        }
+        
+        function drawLabel(x, y, text, color) {
+            if (!text) return;
+            
+            ctx.font = `${12 / zoom}px sans-serif`;
+            const textWidth = ctx.measureText(text).width;
+            
+            // 背景
+            ctx.fillStyle = 'rgba(30, 30, 46, 0.95)';
+            ctx.beginPath();
+            ctx.roundRect(x - textWidth/2 - 8, y - 12, textWidth + 16, 24, 4 / zoom);
+            ctx.fill();
+            
+            // 文字
+            ctx.fillStyle = color;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(text, x, y);
+        }
+        
+        function adjustColor(color, amount) {
+            const hex = color.replace('#', '');
+            const r = Math.max(0, Math.min(255, parseInt(hex.substr(0, 2), 16) + amount));
+            const g = Math.max(0, Math.min(255, parseInt(hex.substr(2, 2), 16) + amount));
+            const b = Math.max(0, Math.min(255, parseInt(hex.substr(4, 2), 16) + amount));
+            return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
+        }
+        
+        // ========== 交互 ==========
+        canvas.addEventListener('mousedown', e => {
+            const rect = canvas.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+            const world = screenToWorld(mouseX, mouseY);
+            
+            const clicked = findCharacterAt(world.x, world.y);
+            
+            if (currentTool === 'select') {
+                if (clicked) {
+                    selectedChar = clicked;
+                    dragTarget = clicked;
+                    dragStart = { x: world.x - clicked.x, y: world.y - clicked.y };
+                    updateSidebar();
+                    updateRelationDetail();
+                } else {
+                    selectedChar = null;
+                    isDragging = true;
+                    dragStart = { x: mouseX - viewOffset.x, y: mouseY - viewOffset.y };
+                    updateRelationDetail();
+                }
+            } else if (currentTool === 'add') {
+                addCharacterAt(world.x, world.y);
+            } else if (currentTool === 'connect') {
+                if (clicked) {
+                    if (!connectFrom) {
+                        connectFrom = clicked;
+                        selectedChar = clicked;
+                    } else if (connectFrom.id !== clicked.id) {
+                        openAddRelation(connectFrom.id, clicked.id);
+                        connectFrom = null;
+                    }
+                }
+            } else if (currentTool === 'delete') {
+                if (clicked) {
+                    deleteCharacter(clicked.id);
+                }
+            }
+            
+            render();
+        });
+        
+        canvas.addEventListener('mousemove', e => {
+            const rect = canvas.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+            
+            if (isDragging) {
+                viewOffset.x = mouseX - dragStart.x;
+                viewOffset.y = mouseY - dragStart.y;
+                render();
+            } else if (dragTarget) {
+                const world = screenToWorld(mouseX, mouseY);
+                dragTarget.x = world.x - dragStart.x;
+                dragTarget.y = world.y - dragStart.y;
+                render();
+            }
+        });
+        
+        canvas.addEventListener('mouseup', () => {
+            isDragging = false;
+            dragTarget = null;
+        });
+        
+        canvas.addEventListener('wheel', e => {
+            e.preventDefault();
+            const rect = canvas.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+            
+            const zoomFactor = e.deltaY > 0 ? 0.9 : 1.1;
+            const newZoom = Math.max(0.3, Math.min(3, zoom * zoomFactor));
+            
+            viewOffset.x = mouseX - (mouseX - viewOffset.x) * (newZoom / zoom);
+            viewOffset.y = mouseY - (mouseY - viewOffset.y) * (newZoom / zoom);
+            zoom = newZoom;
+            
+            render();
+        });
+        
+        canvas.addEventListener('dblclick', e => {
+            const rect = canvas.getBoundingClientRect();
+            const world = screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
+            const clicked = findCharacterAt(world.x, world.y);
+            
+            if (clicked) {
+                editCharacter(clicked.id);
+            }
+        });
+        
+        function findCharacterAt(x, y) {
+            const radius = 40;
+            return characters.find(c => {
+                const dx = x - c.x;
+                const dy = y - c.y;
+                return Math.sqrt(dx*dx + dy*dy) < radius;
+            });
+        }
+        
+        // ========== 工具栏 ==========
+        function setTool(tool) {
+            currentTool = tool;
+            connectFrom = null;
+            
+            document.querySelectorAll('.tool-btn').forEach(btn => btn.classList.remove('active'));
+            document.getElementById('tool-' + tool)?.classList.add('active');
+            
+            updateHelpHint();
+        }
+        
+        function updateHelpHint() {
+            const hints = {
+                'select': '点击选择人物 | 拖拽移动 | 双击编辑',
+                'add': '点击空白处添加人物',
+                'connect': '依次点击两个人物建立关系',
+                'delete': '点击人物删除'
+            };
+            document.getElementById('help-hint').textContent = hints[currentTool] || '';
+        }
+        
+        function zoomIn() {
+            zoom = Math.min(3, zoom * 1.2);
+            render();
+        }
+        
+        function zoomOut() {
+            zoom = Math.max(0.3, zoom * 0.8);
+            render();
+        }
+        
+        function resetView() {
+            zoom = 1;
+            viewOffset = { x: 0, y: 0 };
+            render();
+        }
+        
+        // ========== 头像处理 ==========
+        function handleAvatarUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            if (file.size > 2 * 1024 * 1024) {
+                alert('图片大小不能超过 2MB');
+                return;
+            }
+            
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                tempAvatar = e.target.result;
+                updateAvatarPreview();
+            };
+            reader.readAsDataURL(file);
+        }
+        
+        function updateAvatarPreview() {
+            const preview = document.getElementById('avatar-preview');
+            if (tempAvatar) {
+                preview.style.backgroundImage = `url(${tempAvatar})`;
+                preview.textContent = '';
+                preview.classList.add('has-image');
+            } else {
+                preview.style.backgroundImage = '';
+                preview.textContent = '👤';
+                preview.classList.remove('has-image');
+            }
+        }
+        
+        function clearAvatar() {
+            tempAvatar = null;
+            document.getElementById('avatar-input').value = '';
+            updateAvatarPreview();
+        }
+        
+        // ========== 人物操作 ==========
+        function addCharacterAt(x, y) {
+            editingCharId = null;
+            tempAvatar = null;
+            document.getElementById('char-name').value = '';
+            document.getElementById('char-desc').value = '';
+            initColorPicker();
+            updateAvatarPreview();
+            window.tempPos = { x, y };
+            document.getElementById('modal-title').textContent = '添加人物';
+            document.getElementById('character-modal').classList.add('active');
+        }
+        
+        function openAddCharacter() {
+            editingCharId = null;
+            tempAvatar = null;
+            document.getElementById('char-name').value = '';
+            document.getElementById('char-desc').value = '';
+            initColorPicker();
+            updateAvatarPreview();
+            window.tempPos = {
+                x: 200 + Math.random() * 400,
+                y: 200 + Math.random() * 300
+            };
+            document.getElementById('modal-title').textContent = '添加人物';
+            document.getElementById('character-modal').classList.add('active');
+        }
+        
+        function editCharacter(id) {
+            const char = characters.find(c => c.id === id);
+            if (!char) return;
+            
+            editingCharId = id;
+            tempAvatar = char.avatar || null;
+            document.getElementById('char-name').value = char.name;
+            document.getElementById('char-desc').value = char.desc || '';
+            initColorPicker(char.color);
+            updateAvatarPreview();
+            document.getElementById('modal-title').textContent = '编辑人物';
+            document.getElementById('character-modal').classList.add('active');
+        }
+        
+        function saveCharacter() {
+            const name = document.getElementById('char-name').value.trim();
+            if (!name) {
+                alert('请输入人物名称');
+                return;
+            }
+            
+            const color = document.querySelector('.color-option.selected')?.dataset.color || colors[0];
+            
+            if (editingCharId) {
+                const char = characters.find(c => c.id === editingCharId);
+                if (char) {
+                    char.name = name;
+                    char.desc = document.getElementById('char-desc').value.trim();
+                    char.color = color;
+                    char.avatar = tempAvatar;
+                }
+            } else {
+                characters.push({
+                    id: generateId(),
+                    name,
+                    desc: document.getElementById('char-desc').value.trim(),
+                    color,
+                    avatar: tempAvatar,
+                    x: window.tempPos?.x || 300,
+                    y: window.tempPos?.y || 300
+                });
+            }
+            
+            closeModal();
+            updateSidebar();
+            render();
+        }
+        
+        function deleteCharacter(id) {
+            if (!confirm('确定删除此人物？相关关系也会被删除。')) return;
+            
+            characters = characters.filter(c => c.id !== id);
+            relations = relations.filter(r => r.from !== id && r.to !== id);
+            
+            if (selectedChar && selectedChar.id === id) {
+                selectedChar = null;
+            }
+            
+            updateSidebar();
+            updateRelationDetail();
+            render();
+        }
+        
+        // ========== 关系操作 ==========
+        function openAddRelation(fromId, toId) {
+            editingRelationId = null;
+            
+            const selectFrom = document.getElementById('relation-from');
+            const selectTo = document.getElementById('relation-to');
+            
+            selectFrom.innerHTML = characters.map(c => 
+                `<option value="${c.id}">${c.name}</option>`
+            ).join('');
+            
+            selectTo.innerHTML = selectFrom.innerHTML;
+            
+            if (fromId) selectFrom.value = fromId;
+            if (toId) selectTo.value = toId;
+            
+            document.getElementById('relation-desc-ab').value = '';
+            document.getElementById('relation-desc-ba').value = '';
+            
+            const typesContainer = document.getElementById('relation-types');
+            typesContainer.innerHTML = relationTypes.map((r, i) => 
+                `<button class="relation-type-btn ${i === 0 ? 'selected' : ''}" 
+                         data-type="${r.name}" 
+                         onclick="selectRelationType(this)">${r.name}</button>`
+            ).join('');
+            
+            document.getElementById('relation-modal-title').textContent = '添加关系';
+            updateRelationPreview();
+            document.getElementById('relation-modal').classList.add('active');
+        }
+        
+        function updateRelationPreview() {
+            const fromId = document.getElementById('relation-from').value;
+            const toId = document.getElementById('relation-to').value;
+            
+            const fromChar = characters.find(c => c.id === fromId);
+            const toChar = characters.find(c => c.id === toId);
+            
+            document.getElementById('from-name-a').textContent = fromChar?.name || 'A';
+            document.getElementById('to-name-a').textContent = toChar?.name || 'B';
+            document.getElementById('from-name-b').textContent = toChar?.name || 'B';
+            document.getElementById('to-name-b').textContent = fromChar?.name || 'A';
+        }
+        
+        function selectRelationType(btn) {
+            document.querySelectorAll('.relation-type-btn').forEach(b => b.classList.remove('selected'));
+            btn.classList.add('selected');
+        }
+        
+        function saveRelation() {
+            const from = document.getElementById('relation-from').value;
+            const to = document.getElementById('relation-to').value;
+            const type = document.querySelector('.relation-type-btn.selected')?.dataset.type;
+            const descAB = document.getElementById('relation-desc-ab').value.trim();
+            const descBA = document.getElementById('relation-desc-ba').value.trim();
+            
+            if (from === to) {
+                alert('请选择不同的人物');
+                return;
+            }
+            
+            const exists = relations.find(r => 
+                (r.from === from && r.to === to) || (r.from === to && r.to === from)
+            );
+            
+            if (exists && !editingRelationId) {
+                alert('这两个人物之间已有关系');
+                return;
+            }
+            
+            if (editingRelationId) {
+                const rel = relations.find(r => r.id === editingRelationId);
+                if (rel) {
+                    rel.from = from;
+                    rel.to = to;
+                    rel.type = type;
+                    rel.descAB = descAB;
+                    rel.descBA = descBA;
+                }
+            } else {
+                relations.push({
+                    id: generateId(),
+                    from,
+                    to,
+                    type,
+                    descAB,
+                    descBA
+                });
+            }
+            
+            closeModal();
+            updateRelationDetail();
+            render();
+        }
+        
+        // ========== UI 辅助 ==========
+        function closeModal() {
+            document.querySelectorAll('.modal').forEach(m => m.classList.remove('active'));
+            editingCharId = null;
+            editingRelationId = null;
+            window.tempPos = null;
+            tempAvatar = null;
+        }
+        
+        function initColorPicker(selectedColor) {
+            const picker = document.getElementById('color-picker');
+            picker.innerHTML = colors.map(c => 
+                `<div class="color-option ${c === (selectedColor || colors[0]) ? 'selected' : ''}" 
+                     style="background: ${c}" 
+                     data-color="${c}"
+                     onclick="selectColor(this)"></div>`
+            ).join('');
+        }
+        
+        function selectColor(el) {
+            document.querySelectorAll('.color-option').forEach(c => c.classList.remove('selected'));
+            el.classList.add('selected');
+        }
+        
+        function updateSidebar() {
+            const list = document.getElementById('character-list');
+            list.innerHTML = characters.map(c => {
+                const avatarStyle = c.avatar 
+                    ? `background-image: url(${c.avatar}); background-size: cover; background-position: center;`
+                    : `background: ${c.color};`;
+                return `
+                    <div class="character-item ${selectedChar && selectedChar.id === c.id ? 'selected' : ''}" 
+                         onclick="selectCharFromList('${c.id}')"
+                         ondblclick="editCharacter('${c.id}')">
+                        <div class="character-item-avatar" style="${avatarStyle}">
+                            ${c.avatar ? '' : c.name.charAt(0)}
+                        </div>
+                        <div class="character-item-info">
+                            <div class="character-name" style="color: ${c.color}">${c.name}</div>
+                            <div class="character-desc">${c.desc || '无描述'}</div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+        
+        function selectCharFromList(id) {
+            selectedChar = characters.find(c => c.id === id);
+            updateSidebar();
+            updateRelationDetail();
+            render();
+        }
+        
+        function updateRelationDetail() {
+            const detail = document.getElementById('relation-detail');
+            const list = document.getElementById('relation-list');
+            
+            if (!selectedChar) {
+                detail.classList.remove('active');
+                return;
+            }
+            
+            detail.classList.add('active');
+            
+            const relatedRels = relations.filter(r => 
+                r.from === selectedChar.id || r.to === selectedChar.id
+            );
+            
+            list.innerHTML = relatedRels.map(rel => {
+                const isFrom = rel.from === selectedChar.id;
+                const otherId = isFrom ? rel.to : rel.from;
+                const other = characters.find(c => c.id === otherId);
+                const desc = isFrom ? rel.descAB : rel.descBA;
+                const relType = relationTypes.find(r => r.name === rel.type) || relationTypes[6];
+                
+                return `
+                    <div class="relation-item" onclick="editRelation('${rel.id}')" style="border-left: 3px solid ${relType.color}">
+                        <div class="relation-target" style="color: ${other?.color || '#fff'}">
+                            ${other?.name || '未知'}
+                        </div>
+                        <div class="relation-desc">${desc || '无描述'}</div>
+                    </div>
+                `;
+            }).join('') || '<div style="color: rgba(255,255,255,0.5); font-size: 13px;">暂无关系</div>';
+        }
+        
+        function editRelation(id) {
+            const rel = relations.find(r => r.id === id);
+            if (!rel) return;
+            
+            editingRelationId = id;
+            
+            const selectFrom = document.getElementById('relation-from');
+            const selectTo = document.getElementById('relation-to');
+            
+            selectFrom.innerHTML = characters.map(c => 
+                `<option value="${c.id}">${c.name}</option>`
+            ).join('');
+            selectTo.innerHTML = selectFrom.innerHTML;
+            
+            selectFrom.value = rel.from;
+            selectTo.value = rel.to;
+            
+            document.getElementById('relation-desc-ab').value = rel.descAB || '';
+            document.getElementById('relation-desc-ba').value = rel.descBA || '';
+            
+            const typesContainer = document.getElementById('relation-types');
+            typesContainer.innerHTML = relationTypes.map(r => 
+                `<button class="relation-type-btn ${r.name === rel.type ? 'selected' : ''}" 
+                         data-type="${r.name}" 
+                         onclick="selectRelationType(this)">${r.name}</button>`
+            ).join('');
+            
+            document.getElementById('relation-modal-title').textContent = '编辑关系';
+            updateRelationPreview();
+            document.getElementById('relation-modal').classList.add('active');
+        }
+        
+        // ========== 存储 ==========
+        function saveToFile() {
+            const data = { characters, relations };
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'character-relations.json';
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+        
+        function loadFromFile() {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.json';
+            input.onchange = e => {
+                const file = e.target.files[0];
+                const reader = new FileReader();
+                reader.onload = event => {
+                    try {
+                        const data = JSON.parse(event.target.result);
+                        characters = data.characters || [];
+                        relations = data.relations || [];
+                        selectedChar = null;
+                        updateSidebar();
+                        updateRelationDetail();
+                        render();
+                    } catch (err) {
+                        alert('文件格式错误');
+                    }
+                };
+                reader.readAsText(file);
+            };
+            input.click();
+        }
+        
+        // 点击外部关闭弹窗
+        document.querySelectorAll('.modal').forEach(modal => {
+            modal.addEventListener('click', e => {
+                if (e.target === modal) closeModal();
+            });
+        });
+        
+        // 初始化示例数据
+        function initDemo() {
+            characters = [
+                { id: '1', name: '张三', desc: '主角', color: '#ff6b6b', avatar: null, x: 300, y: 200 },
+                { id: '2', name: '李四', desc: '张三的好友', color: '#48dbfb', avatar: null, x: 480, y: 150 },
+                { id: '3', name: '王五', desc: '张三的同事', color: '#54a0ff', avatar: null, x: 480, y: 320 },
+                { id: '4', name: '赵六', desc: '神秘人物', color: '#5f27cd', avatar: null, x: 150, y: 320 }
+            ];
+            
+            relations = [
+                { id: 'r1', from: '1', to: '2', type: '朋友', descAB: '值得信赖的兄弟', descBA: '有点啰嗦但人不错' },
+                { id: 'r2', from: '1', to: '3', type: '同事', descAB: '工作能力很强', descBA: '需要多学习' },
+                { id: 'r3', from: '2', to: '4', type: '敌人', descAB: '那个叛徒', descBA: '碍眼的家伙' },
+                { id: 'r4', from: '1', to: '4', type: '其他', descAB: '总觉得在哪见过', descBA: '重要的人' }
+            ];
+            
+            updateSidebar();
+            render();
+        }
+        
+        initDemo();
+    </script>
+</body>
+</html>
