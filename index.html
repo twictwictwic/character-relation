@@ -885,15 +885,10 @@
                 const dist = Math.sqrt(dx*dx + dy*dy);
                 const angle = Math.atan2(dy, dx);
 
-                // 双线显示(稍微偏移)
-                const offset = 6 / zoom;
-                const perpX = Math.cos(angle + Math.PI/2) * offset;
-                const perpY = Math.sin(angle + Math.PI/2) * offset;
-
-                // 绘制线条
+                // 绘制主线条
                 ctx.beginPath();
                 ctx.strokeStyle = isHighlighted ? relType.color : relType.color + '60';
-                ctx.lineWidth = (isHighlighted ? 3 : 1.5) / zoom;
+                ctx.lineWidth = (isHighlighted ? 2.5 : 1.5) / zoom;
 
                 if (relType.style === 'dashed') {
                     ctx.setLineDash([5, 5]);
@@ -901,13 +896,16 @@
                     ctx.setLineDash([]);
                 }
 
-                ctx.moveTo(from.x + perpX, from.y + perpY);
-                ctx.lineTo(to.x + perpX, to.y + perpY);
+                ctx.moveTo(from.x, from.y);
+                ctx.lineTo(to.x, to.y);
                 ctx.stroke();
 
-                // 绘制箭头
+                // 绘制箭头:双向关系,两个箭头
                 if (isHighlighted) {
-                    drawArrow(from.x + perpX, from.y + perpY, to.x + perpX, to.y + perpY, relType.color);
+                    // A→B: A眼中的B,箭头指向B
+                    drawArrow(from.x, from.y, to.x, to.y, relType.color, false);
+                    // B→A: B眼中的A,箭头指向A
+                    drawArrow(from.x, from.y, to.x, to.y, relType.color, true);
                 }
 
                 // 只在选中人物时显示描述
@@ -915,46 +913,57 @@
                     const midX = (from.x + to.x) / 2;
                     const midY = (from.y + to.y) / 2;
                     
+                    // 计算偏移：让标签分别靠近对应的箭头
+                    const labelOffset = 25 / zoom;
+                    const perpX = -Math.sin(angle) * labelOffset;
+                    const perpY = Math.cos(angle) * labelOffset;
+                    
                     // 获取分身名称
                     let fromLabel = rel.descAB;
                     let toLabel = rel.descBA;
                     
                     if (selectedChar.id === rel.from) {
-                        // 显示 from 视角
+                        // 显示 from 视角：A眼中的B
                         if (rel.fromAlterId) {
                             const fromChar = characters.find(c => c.id === rel.from);
                             const alter = fromChar?.alterEgos?.find(a => a.id === rel.fromAlterId);
-                            if (alter) {
-                                fromLabel = `[${alter.name}] ${rel.descAB}`;
-                            }
+                            if (alter) fromLabel = `[${alter.name}] ${rel.descAB}`;
                         }
                         if (rel.toAlterId) {
                             const toChar = characters.find(c => c.id === rel.to);
                             const alter = toChar?.alterEgos?.find(a => a.id === rel.toAlterId);
-                            if (alter) {
-                                toLabel = `${rel.descBA} (对${alter.name})`;
-                            }
+                            if (alter) toLabel = `${rel.descBA} (对${alter.name})`;
                         }
-                        if (fromLabel) drawLabel(midX - 15/zoom, midY - 12/zoom, fromLabel, relType.color);
                     }
                     
                     if (selectedChar.id === rel.to) {
-                        // 显示 to 视角
+                        // 显示 to 视角：B眼中的A
                         if (rel.fromAlterId) {
                             const fromChar = characters.find(c => c.id === rel.from);
                             const alter = fromChar?.alterEgos?.find(a => a.id === rel.fromAlterId);
-                            if (alter) {
-                                fromLabel = `${rel.descAB} (对${alter.name})`;
-                            }
+                            if (alter) fromLabel = `${rel.descAB} (对${alter.name})`;
                         }
                         if (rel.toAlterId) {
                             const toChar = characters.find(c => c.id === rel.to);
                             const alter = toChar?.alterEgos?.find(a => a.id === rel.toAlterId);
-                            if (alter) {
-                                toLabel = `[${alter.name}] ${rel.descBA}`;
-                            }
+                            if (alter) toLabel = `[${alter.name}] ${rel.descBA}`;
                         }
-                        if (toLabel) drawLabel(midX + 15/zoom, midY + 12/zoom, toLabel, relType.color);
+                    }
+                    
+                    // A眼中的B：靠近B端（箭头指向B）
+                    if (fromLabel && (selectedChar.id === rel.from || selectedChar.id === rel.to)) {
+                        const ratio = 0.7;
+                        const labelX = from.x + dx * ratio + perpX;
+                        const labelY = from.y + dy * ratio + perpY;
+                        drawLabel(labelX, labelY, fromLabel, relType.color);
+                    }
+                    
+                    // B眼中的A：靠近A端（箭头指向A）
+                    if (toLabel && (selectedChar.id === rel.from || selectedChar.id === rel.to)) {
+                        const ratio = 0.3;
+                        const labelX = from.x + dx * ratio - perpX;
+                        const labelY = from.y + dy * ratio - perpY;
+                        drawLabel(labelX, labelY, toLabel, relType.color);
                     }
                 }
             }
@@ -1035,7 +1044,7 @@
             ctx.fillText(char.name.charAt(0), char.x, char.y);
         }
 
-        function drawArrow(x1, y1, x2, y2, color) {
+        function drawArrow(x1, y1, x2, y2, color, reverse = false) {
             const headLen = 10 / zoom;
             const dx = x2 - x1;
             const dy = y2 - y1;
@@ -1043,18 +1052,31 @@
 
             const radius = 40 / zoom;
             const dist = Math.sqrt(dx*dx + dy*dy);
-            const ratio = (dist - radius) / dist;
-            const endX = x1 + dx * ratio;
-            const endY = y1 + dy * ratio;
+
+            // 箭头位置:正向指向终点,反向指向起点
+            let endX, endY, arrowAngle;
+            if (reverse) {
+                // 反向:箭头指向起点(x1, y1)
+                const ratio = radius / dist;
+                endX = x1 + dx * ratio;
+                endY = y1 + dy * ratio;
+                arrowAngle = angle + Math.PI;
+            } else {
+                // 正向:箭头指向终点(x2, y2)
+                const ratio = (dist - radius) / dist;
+                endX = x1 + dx * ratio;
+                endY = y1 + dy * ratio;
+                arrowAngle = angle;
+            }
 
             ctx.beginPath();
             ctx.strokeStyle = color;
             ctx.lineWidth = 2 / zoom;
             ctx.setLineDash([]);
             ctx.moveTo(endX, endY);
-            ctx.lineTo(endX - headLen * Math.cos(angle - Math.PI/6), endY - headLen * Math.sin(angle - Math.PI/6));
+            ctx.lineTo(endX - headLen * Math.cos(arrowAngle - Math.PI/6), endY - headLen * Math.sin(arrowAngle - Math.PI/6));
             ctx.moveTo(endX, endY);
-            ctx.lineTo(endX - headLen * Math.cos(angle + Math.PI/6), endY - headLen * Math.sin(angle + Math.PI/6));
+            ctx.lineTo(endX - headLen * Math.cos(arrowAngle + Math.PI/6), endY - headLen * Math.sin(arrowAngle + Math.PI/6));
             ctx.stroke();
         }
 
@@ -1406,20 +1428,20 @@
             document.getElementById('to-name-a').textContent = toChar?.name || 'B';
             document.getElementById('from-name-b').textContent = toChar?.name || 'B';
             document.getElementById('to-name-b').textContent = fromChar?.name || 'A';
-            
+
             // 更新分身选择器
             updateAlterSelector('from', fromChar);
             updateAlterSelector('to', toChar);
         }
-        
+
         function updateAlterSelector(side, char) {
             const container = document.getElementById(`alter-selector-${side}`);
             if (!char || !char.alterEgos || char.alterEgos.length === 0) {
                 container.innerHTML = '';
                 return;
             }
-            
-            // 默认选择“本体”
+
+            // 默认选择"本体"
             container.innerHTML = `
                 <button class="alter-selector-btn selected" data-alter-id="" onclick="selectAlter('${side}', this)">本体</button>
                 ${char.alterEgos.map(alter => `
@@ -1427,7 +1449,7 @@
                 `).join('')}
             `;
         }
-        
+
         function selectAlter(side, btn) {
             const container = document.getElementById(`alter-selector-${side}`);
             container.querySelectorAll('.alter-selector-btn').forEach(b => b.classList.remove('selected'));
@@ -1447,7 +1469,7 @@
             const descBA = document.getElementById('relation-desc-ba').value.trim();
             const detailAB = document.getElementById('relation-detail-ab').value.trim();
             const detailBA = document.getElementById('relation-detail-ba').value.trim();
-            
+
             // 获取分身选择
             const fromAlterBtn = document.querySelector('#alter-selector-from .alter-selector-btn.selected');
             const toAlterBtn = document.querySelector('#alter-selector-to .alter-selector-btn.selected');
@@ -1624,7 +1646,7 @@
 
             document.getElementById('relation-modal-title').textContent = '编辑关系';
             updateRelationPreview();
-            
+
             // 恢复分身选择
             setTimeout(() => {
                 if (rel.fromAlterId) {
@@ -1636,7 +1658,7 @@
                     if (toBtn) selectAlter('to', toBtn);
                 }
             }, 50);
-            
+
             document.getElementById('relation-modal').classList.add('active');
         }
 
@@ -1686,7 +1708,7 @@
         function editAlterEgo(index) {
             const alter = window.tempAlterEgos[index];
             if (!alter) return;
-            
+
             // 打开分身编辑弹窗
             const modal = document.createElement('div');
             modal.className = 'modal active';
@@ -1694,7 +1716,7 @@
             modal.innerHTML = `
                 <div class="modal-content" style="width: 400px;">
                     <div class="modal-title">编辑分身</div>
-                    
+
                     <div class="avatar-upload">
                         <div class="avatar-preview" id="alter-avatar-preview" onclick="document.getElementById('alter-avatar-input').click()">
                             ${alter.avatar ? '' : alter.name.charAt(0)}
@@ -1706,43 +1728,43 @@
                             <input type="file" id="alter-avatar-input" accept="image/*" style="display: none;">
                         </div>
                     </div>
-                    
+
                     <div class="form-group">
                         <label class="form-label">分身名称</label>
                         <input type="text" class="form-input" id="alter-name-input" value="${alter.name}">
                     </div>
-                    
+
                     <div class="form-group">
                         <label class="form-label">分身描述</label>
                         <textarea class="form-input" id="alter-desc-input" style="min-height: 60px;">${alter.desc || ''}</textarea>
                     </div>
-                    
+
                     <div class="modal-actions">
                         <button class="btn btn-secondary" onclick="closeAlterModal()">取消</button>
                         <button class="btn btn-primary" onclick="saveAlterEgo(${index})">保存</button>
                     </div>
                 </div>
             `;
-            
+
             document.body.appendChild(modal);
-            
+
             // 初始化头像预览
             const preview = document.getElementById('alter-avatar-preview');
             if (alter.avatar) {
                 preview.style.backgroundImage = `url(${alter.avatar})`;
                 preview.classList.add('has-image');
             }
-            
+
             // 绑定头像上传事件
             document.getElementById('alter-avatar-input').addEventListener('change', function(e) {
                 const file = e.target.files[0];
                 if (!file) return;
-                
+
                 if (file.size > 2 * 1024 * 1024) {
                     alert('图片大小不能超过 2MB');
                     return;
                 }
-                
+
                 const reader = new FileReader();
                 reader.onload = (event) => {
                     window.tempAlterAvatar = event.target.result;
@@ -1753,35 +1775,35 @@
                 };
                 reader.readAsDataURL(file);
             });
-            
+
             window.tempAlterAvatar = alter.avatar || null;
-            
+
             modal.addEventListener('click', (e) => {
                 if (e.target === modal) closeAlterModal();
             });
         }
-        
+
         function closeAlterModal() {
             const modal = document.getElementById('alter-ego-edit-modal');
             if (modal) modal.remove();
             window.tempAlterAvatar = null;
         }
-        
+
         function saveAlterEgo(index) {
             const name = document.getElementById('alter-name-input').value.trim();
             if (!name) {
                 alert('请输入分身名称');
                 return;
             }
-            
+
             window.tempAlterEgos[index].name = name;
             window.tempAlterEgos[index].desc = document.getElementById('alter-desc-input').value.trim();
             window.tempAlterEgos[index].avatar = window.tempAlterAvatar;
-            
+
             closeAlterModal();
             updateAlterEgosUI();
         }
-        
+
         function clearAlterAvatar(index) {
             window.tempAlterAvatar = null;
             const preview = document.getElementById('alter-avatar-preview');
