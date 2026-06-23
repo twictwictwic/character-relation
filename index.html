@@ -567,6 +567,7 @@
                     <span class="char-name" id="from-name-a">A</span> 眼中的 <span class="char-name" id="to-name-a">B</span>：
                 </div>
                 <input type="text" class="form-input" id="relation-desc-ab" placeholder="例如：我的挚友、那个叛徒...">
+                <textarea class="form-input" id="relation-detail-ab" placeholder="详细描述（可选）..." style="margin-top: 8px; min-height: 60px; resize: vertical;"></textarea>
             </div>
             
             <div class="bidirectional-editor">
@@ -574,6 +575,7 @@
                     <span class="char-name" id="from-name-b">B</span> 眼中的 <span class="char-name" id="to-name-b">A</span>：
                 </div>
                 <input type="text" class="form-input" id="relation-desc-ba" placeholder="例如：值得信赖的人...">
+                <textarea class="form-input" id="relation-detail-ba" placeholder="详细描述（可选）..." style="margin-top: 8px; min-height: 60px; resize: vertical;"></textarea>
             </div>
             
             <div class="form-group" style="margin-top: 16px;">
@@ -1159,6 +1161,8 @@
             
             document.getElementById('relation-desc-ab').value = '';
             document.getElementById('relation-desc-ba').value = '';
+            document.getElementById('relation-detail-ab').value = '';
+            document.getElementById('relation-detail-ba').value = '';
             
             const typesContainer = document.getElementById('relation-types');
             typesContainer.innerHTML = relationTypes.map((r, i) => 
@@ -1196,6 +1200,8 @@
             const type = document.querySelector('.relation-type-btn.selected')?.dataset.type;
             const descAB = document.getElementById('relation-desc-ab').value.trim();
             const descBA = document.getElementById('relation-desc-ba').value.trim();
+            const detailAB = document.getElementById('relation-detail-ab').value.trim();
+            const detailBA = document.getElementById('relation-detail-ba').value.trim();
             
             if (from === to) {
                 alert('请选择不同的人物');
@@ -1219,6 +1225,8 @@
                     rel.type = type;
                     rel.descAB = descAB;
                     rel.descBA = descBA;
+                    rel.detailAB = detailAB;
+                    rel.detailBA = detailBA;
                 }
             } else {
                 relations.push({
@@ -1227,7 +1235,9 @@
                     to,
                     type,
                     descAB,
-                    descBA
+                    descBA,
+                    detailAB,
+                    detailBA
                 });
             }
             
@@ -1309,6 +1319,7 @@
                 const otherId = isFrom ? rel.to : rel.from;
                 const other = characters.find(c => c.id === otherId);
                 const desc = isFrom ? rel.descAB : rel.descBA;
+                const detail = isFrom ? rel.detailAB : rel.detailBA;
                 const relType = relationTypes.find(r => r.name === rel.type) || relationTypes[6];
                 
                 return `
@@ -1317,6 +1328,7 @@
                             ${other?.name || '未知'}
                         </div>
                         <div class="relation-desc">${desc || '无描述'}</div>
+                        ${detail ? `<div class="relation-detail-text" style="font-size: 12px; color: rgba(255,255,255,0.6); margin-top: 4px;">${detail}</div>` : ''}
                     </div>
                 `;
             }).join('') || '<div style="color: rgba(255,255,255,0.5); font-size: 13px;">暂无关系</div>';
@@ -1341,6 +1353,8 @@
             
             document.getElementById('relation-desc-ab').value = rel.descAB || '';
             document.getElementById('relation-desc-ba').value = rel.descBA || '';
+            document.getElementById('relation-detail-ab').value = rel.detailAB || '';
+            document.getElementById('relation-detail-ba').value = rel.detailBA || '';
             
             const typesContainer = document.getElementById('relation-types');
             typesContainer.innerHTML = relationTypes.map(r => 
@@ -1408,10 +1422,10 @@
             ];
             
             relations = [
-                { id: 'r1', from: '1', to: '2', type: '朋友', descAB: '值得信赖的兄弟', descBA: '有点啰嗦但人不错' },
-                { id: 'r2', from: '1', to: '3', type: '同事', descAB: '工作能力很强', descBA: '需要多学习' },
-                { id: 'r3', from: '2', to: '4', type: '敌人', descAB: '那个叛徒', descBA: '碍眼的家伙' },
-                { id: 'r4', from: '1', to: '4', type: '其他', descAB: '总觉得在哪见过', descBA: '重要的人' }
+                { id: 'r1', from: '1', to: '2', type: '朋友', descAB: '值得信赖的兄弟', descBA: '有点啰嗦但人不错', detailAB: '从大学时代就认识，一起经历过很多事', detailBA: '虽然说话直接，但关键时刻从不掉链子' },
+                { id: 'r2', from: '1', to: '3', type: '同事', descAB: '工作能力很强', descBA: '需要多学习', detailAB: '项目合作时非常靠谱', detailBA: '新人，还有很多要请教的地方' },
+                { id: 'r3', from: '2', to: '4', type: '敌人', descAB: '那个叛徒', descBA: '碍眼的家伙', detailAB: '背叛了整个团队，不可原谅', detailBA: '总是自以为是，看不顺眼' },
+                { id: 'r4', from: '1', to: '4', type: '其他', descAB: '总觉得在哪见过', descBA: '重要的人', detailAB: '很熟悉的感觉，但想不起来', detailBA: '必须保护的人' }
             ];
             
             updateSidebar();
