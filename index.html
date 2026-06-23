@@ -703,6 +703,14 @@
             </div>
 
             <div class="form-group">
+                <label class="form-label">头像背景颜色</label>
+                <div class="color-picker" id="avatar-bg-picker"></div>
+                <div style="font-size: 12px; color: rgba(255,255,255,0.5); margin-top: 4px;">
+                    仅在无头像或头像透明时生效
+                </div>
+            </div>
+
+            <div class="form-group">
                 <label class="form-label">颜色(无头像时使用)</label>
                 <div class="color-picker" id="color-picker"></div>
             </div>
@@ -753,6 +761,10 @@
             <div class="form-group" style="margin-top: 16px;">
                 <label class="form-label">关系类型</label>
                 <div class="relation-types" id="relation-types"></div>
+                <div id="custom-color-section" style="display: none; margin-top: 8px;">
+                    <label class="form-label" style="font-size: 12px;">自定义颜色</label>
+                    <input type="color" id="custom-relation-color" value="#feca57" style="width: 100%; height: 30px; border: none; border-radius: 4px; cursor: pointer;">
+                </div>
             </div>
 
             <div class="form-group">
@@ -793,7 +805,15 @@
         // 颜色选项
         const colors = [
             '#ff6b6b', '#feca57', '#48dbfb', '#1dd1a1', '#5f27cd',
-            '#ff9ff3', '#54a0ff', '#00d2d3', '#ff9f43', '#10ac84'
+            '#ff9ff3', '#54a0ff', '#00d2d3', '#ff9f43', '#10ac84',
+            '#c8d6e5', '#8395a7', '#222f3e', '#576574', '#0abde3'
+        ];
+
+        // 头像背景颜色选项
+        const avatarBgColors = [
+            '#ff6b6b', '#feca57', '#48dbfb', '#1dd1a1', '#5f27cd',
+            '#ff9ff3', '#54a0ff', '#00d2d3', '#ff9f43', '#10ac84',
+            '#ffffff', '#c8d6e5', '#8395a7', '#2c3e50', '#1abc9c'
         ];
 
         // 关系类型
@@ -874,7 +894,10 @@
                 const to = characters.find(c => c.id === rel.to);
                 if (!from || !to) continue;
 
-                const relType = relationTypes.find(r => r.name === rel.type) || relationTypes[6];
+                let relType = relationTypes.find(r => r.name === rel.type) || relationTypes[6];
+
+                // 如果是自定义颜色,使用自定义颜色
+                const lineColor = rel.customColor || relType.color;
 
                 // 只有选中人物时才高亮显示相关关系
                 const isHighlighted = selectedChar && (rel.from === selectedChar.id || rel.to === selectedChar.id);
@@ -887,7 +910,7 @@
 
                 // 绘制主线条
                 ctx.beginPath();
-                ctx.strokeStyle = isHighlighted ? relType.color : relType.color + '60';
+                ctx.strokeStyle = isHighlighted ? lineColor : lineColor + '60';
                 ctx.lineWidth = (isHighlighted ? 2.5 : 1.5) / zoom;
 
                 if (relType.style === 'dashed') {
@@ -903,27 +926,27 @@
                 // 绘制箭头:双向关系,两个箭头
                 if (isHighlighted) {
                     // A→B: A眼中的B,箭头指向B
-                    drawArrow(from.x, from.y, to.x, to.y, relType.color, false);
+                    drawArrow(from.x, from.y, to.x, to.y, lineColor, false);
                     // B→A: B眼中的A,箭头指向A
-                    drawArrow(from.x, from.y, to.x, to.y, relType.color, true);
+                    drawArrow(from.x, from.y, to.x, to.y, lineColor, true);
                 }
 
                 // 只在选中人物时显示描述
                 if (isHighlighted) {
                     const midX = (from.x + to.x) / 2;
                     const midY = (from.y + to.y) / 2;
-                    
-                    // 计算偏移：让标签分别靠近对应的箭头
+
+                    // 计算偏移:让标签分别靠近对应的箭头
                     const labelOffset = 25 / zoom;
                     const perpX = -Math.sin(angle) * labelOffset;
                     const perpY = Math.cos(angle) * labelOffset;
-                    
+
                     // 获取分身名称
                     let fromLabel = rel.descAB;
                     let toLabel = rel.descBA;
-                    
+
                     if (selectedChar.id === rel.from) {
-                        // 显示 from 视角：A眼中的B
+                        // 显示 from 视角:A眼中的B
                         if (rel.fromAlterId) {
                             const fromChar = characters.find(c => c.id === rel.from);
                             const alter = fromChar?.alterEgos?.find(a => a.id === rel.fromAlterId);
@@ -935,9 +958,9 @@
                             if (alter) toLabel = `${rel.descBA} (对${alter.name})`;
                         }
                     }
-                    
+
                     if (selectedChar.id === rel.to) {
-                        // 显示 to 视角：B眼中的A
+                        // 显示 to 视角:B眼中的A
                         if (rel.fromAlterId) {
                             const fromChar = characters.find(c => c.id === rel.from);
                             const alter = fromChar?.alterEgos?.find(a => a.id === rel.fromAlterId);
@@ -949,21 +972,21 @@
                             if (alter) toLabel = `[${alter.name}] ${rel.descBA}`;
                         }
                     }
-                    
-                    // A眼中的B：靠近B端（箭头指向B）
+
+                    // A眼中的B:靠近B端(箭头指向B)
                     if (fromLabel && (selectedChar.id === rel.from || selectedChar.id === rel.to)) {
                         const ratio = 0.7;
                         const labelX = from.x + dx * ratio + perpX;
                         const labelY = from.y + dy * ratio + perpY;
-                        drawLabel(labelX, labelY, fromLabel, relType.color);
+                        drawLabel(labelX, labelY, fromLabel, lineColor);
                     }
-                    
-                    // B眼中的A：靠近A端（箭头指向A）
+
+                    // B眼中的A:靠近A端(箭头指向A)
                     if (toLabel && (selectedChar.id === rel.from || selectedChar.id === rel.to)) {
                         const ratio = 0.3;
                         const labelX = from.x + dx * ratio - perpX;
                         const labelY = from.y + dy * ratio - perpY;
-                        drawLabel(labelX, labelY, toLabel, relType.color);
+                        drawLabel(labelX, labelY, toLabel, lineColor);
                     }
                 }
             }
@@ -1020,13 +1043,15 @@
         }
 
         function drawColorNode(char, radius, isSelected) {
+            const bgColor = char.avatarBgColor || '#667eea';
+
             // 渐变填充
             const gradient = ctx.createRadialGradient(
                 char.x - 5, char.y - 5, 0,
                 char.x, char.y, radius
             );
-            gradient.addColorStop(0, char.color);
-            gradient.addColorStop(1, adjustColor(char.color, -30));
+            gradient.addColorStop(0, bgColor);
+            gradient.addColorStop(1, adjustColor(bgColor, -30));
 
             ctx.fillStyle = gradient;
             ctx.fill();
@@ -1264,13 +1289,18 @@
 
         function updateAvatarPreview() {
             const preview = document.getElementById('avatar-preview');
+            const avatarBgColor = document.querySelector('#avatar-bg-picker .color-option.selected')?.dataset.color || '#667eea';
+
             if (tempAvatar) {
                 preview.style.backgroundImage = `url(${tempAvatar})`;
+                preview.style.backgroundColor = '';
                 preview.textContent = '';
                 preview.classList.add('has-image');
             } else {
+                const name = document.getElementById('char-name').value.trim();
                 preview.style.backgroundImage = '';
-                preview.textContent = '👤';
+                preview.style.backgroundColor = avatarBgColor;
+                preview.textContent = name ? name.charAt(0) : '👤';
                 preview.classList.remove('has-image');
             }
         }
@@ -1289,6 +1319,7 @@
             document.getElementById('char-name').value = '';
             document.getElementById('char-desc').value = '';
             initColorPicker();
+            initAvatarBgPicker();
             updateAvatarPreview();
             updateAlterEgosUI();
             document.getElementById('alter-egos-section').style.display = 'none';
@@ -1304,6 +1335,7 @@
             document.getElementById('char-name').value = '';
             document.getElementById('char-desc').value = '';
             initColorPicker();
+            initAvatarBgPicker();
             updateAvatarPreview();
             updateAlterEgosUI();
             document.getElementById('alter-egos-section').style.display = 'none';
@@ -1325,6 +1357,7 @@
             document.getElementById('char-name').value = char.name;
             document.getElementById('char-desc').value = char.desc || '';
             initColorPicker(char.color);
+            initAvatarBgPicker(char.avatarBgColor);
             updateAvatarPreview();
             updateAlterEgosUI();
             document.getElementById('alter-egos-section').style.display = 'block';
@@ -1339,7 +1372,8 @@
                 return;
             }
 
-            const color = document.querySelector('.color-option.selected')?.dataset.color || colors[0];
+            const color = document.querySelector('#color-picker .color-option.selected')?.dataset.color || colors[0];
+            const avatarBgColor = document.querySelector('#avatar-bg-picker .color-option.selected')?.dataset.color || avatarBgColors[0];
             const alterEgos = window.tempAlterEgos || [];
 
             if (editingCharId) {
@@ -1349,6 +1383,7 @@
                     char.desc = document.getElementById('char-desc').value.trim();
                     char.color = color;
                     char.avatar = tempAvatar;
+                    char.avatarBgColor = avatarBgColor;
                     char.alterEgos = alterEgos;
                 }
             } else {
@@ -1358,6 +1393,7 @@
                     desc: document.getElementById('char-desc').value.trim(),
                     color,
                     avatar: tempAvatar,
+                    avatarBgColor,
                     alterEgos,
                     x: window.tempPos?.x || 300,
                     y: window.tempPos?.y || 300
@@ -1459,6 +1495,14 @@
         function selectRelationType(btn) {
             document.querySelectorAll('.relation-type-btn').forEach(b => b.classList.remove('selected'));
             btn.classList.add('selected');
+
+            // 如果选择"其他",显示颜色选择器
+            const customSection = document.getElementById('custom-color-section');
+            if (btn.dataset.type === '其他') {
+                customSection.style.display = 'block';
+            } else {
+                customSection.style.display = 'none';
+            }
         }
 
         function saveRelation() {
@@ -1475,6 +1519,12 @@
             const toAlterBtn = document.querySelector('#alter-selector-to .alter-selector-btn.selected');
             const fromAlterId = fromAlterBtn?.dataset.alterId || null;
             const toAlterId = toAlterBtn?.dataset.alterId || null;
+
+            // 获取自定义颜色
+            let customColor = null;
+            if (type === '其他') {
+                customColor = document.getElementById('custom-relation-color')?.value || '#feca57';
+            }
 
             if (from === to) {
                 alert('请选择不同的人物');
@@ -1502,6 +1552,7 @@
                     rel.detailBA = detailBA;
                     rel.fromAlterId = fromAlterId;
                     rel.toAlterId = toAlterId;
+                    rel.customColor = customColor;
                 }
             } else {
                 relations.push({
@@ -1514,7 +1565,8 @@
                     detailAB,
                     detailBA,
                     fromAlterId,
-                    toAlterId
+                    toAlterId,
+                    customColor
                 });
             }
 
@@ -1538,12 +1590,22 @@
                 `<div class="color-option ${c === (selectedColor || colors[0]) ? 'selected' : ''}"
                      style="background: ${c}"
                      data-color="${c}"
-                     onclick="selectColor(this)"></div>`
+                     onclick="selectColor(this, 'color-picker')"></div>`
             ).join('');
         }
 
-        function selectColor(el) {
-            document.querySelectorAll('.color-option').forEach(c => c.classList.remove('selected'));
+        function initAvatarBgPicker(selectedColor) {
+            const picker = document.getElementById('avatar-bg-picker');
+            picker.innerHTML = avatarBgColors.map(c =>
+                `<div class="color-option ${c === (selectedColor || '#667eea') ? 'selected' : ''}"
+                     style="background: ${c}"
+                     data-color="${c}"
+                     onclick="selectColor(this, 'avatar-bg-picker')"></div>`
+            ).join('');
+        }
+
+        function selectColor(el, pickerId) {
+            document.querySelectorAll(`#${pickerId} .color-option`).forEach(c => c.classList.remove('selected'));
             el.classList.add('selected');
         }
 
@@ -1643,6 +1705,15 @@
                          data-type="${r.name}"
                          onclick="selectRelationType(this)">${r.name}</button>`
             ).join('');
+            
+            // 恢复自定义颜色
+            const customSection = document.getElementById('custom-color-section');
+            if (rel.type === '其他' && rel.customColor) {
+                customSection.style.display = 'block';
+                document.getElementById('custom-relation-color').value = rel.customColor;
+            } else {
+                customSection.style.display = 'none';
+            }
 
             document.getElementById('relation-modal-title').textContent = '编辑关系';
             updateRelationPreview();
@@ -1895,7 +1966,10 @@
             updateSidebar();
             render();
         }
-
+        
+        // 名字改变时更新头像预览
+        document.getElementById('char-name').addEventListener('input', updateAvatarPreview);
+        
         initDemo();
     </script>
 </body>
