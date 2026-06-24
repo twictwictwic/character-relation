@@ -679,7 +679,8 @@
             </div>
 
             <div class="btn-group">
-                <button class="btn btn-secondary" onclick="saveToFile()">💾 保存</button>
+                <button class="btn btn-secondary" id="quick-save-btn" style="display:none;" onclick="quickSave()">⚡ 快速保存</button>
+                <button class="btn btn-secondary" onclick="saveToFile()">💾 另存为</button>
                 <button class="btn btn-secondary" onclick="loadFromFile()">📂 加载</button>
             </div>
 
@@ -1984,7 +1985,95 @@
         }
 
         // ========== 存储 ==========
+        let fileHandle = null; // 保存文件句柄
+        
+        function updateSaveButton() {
+            const quickBtn = document.getElementById('quick-save-btn');
+            if (fileHandle) {
+                quickBtn.style.display = 'inline-block';
+                fileHandle.getFile().then(file => {
+                    quickBtn.textContent = `⚡ 保存到 ${file.name}`;
+                });
+            } else {
+                quickBtn.style.display = 'none';
+            }
+        }
+        
+        async function quickSave() {
+            if (!fileHandle) return;
+            try {
+                const writable = await fileHandle.createWritable();
+                const data = { characters, relations };
+                await writable.write(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }));
+                await writable.close();
+                console.log('✅ 快速保存成功');
+            } catch (err) {
+                console.error('快速保存失败:', err);
+                alert('保存失败，请尝试"另存为"');
+                fileHandle = null;
+                updateSaveButton();
+            }
+        }
+        
         function saveToFile() {
+            const data = { characters, relations };
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            
+            // 如果已有文件句柄，直接覆盖保存
+            if (fileHandle) {
+                fileHandle.getFile().then(file => {
+                    if (confirm(`是否覆盖保存到 ${file.name}？`)) {
+                        fileHandle.createWritable().then(writable => {
+                            writable.write(blob);
+                            writable.close();
+                            console.log('✅ 已覆盖保存');
+                        }).catch(err => {
+                            console.error('保存失败:', err);
+                            fileHandle = null; // 句柄失效，重新选择
+                            saveAsNew();
+                        });
+                    } else {
+                        saveAsNew();
+                    }
+                });
+            } else {
+                saveAsNew();
+            }
+        }
+        
+        async function saveAsNew() {
+            // 尝试使用 File System Access API
+            if ('showSaveFilePicker' in window) {
+                try {
+                    const options = {
+                        suggestedName: 'character-relations.json',
+                        types: [{
+                            description: 'JSON 文件',
+                            accept: { 'application/json': ['.json'] }
+                        }]
+                    };
+                    fileHandle = await window.showSaveFilePicker(options);
+                    const writable = await fileHandle.createWritable();
+                    const data = { characters, relations };
+                    await writable.write(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }));
+                    await writable.close();
+                    console.log('✅ 已保存到新文件');
+                    updateSaveButton();
+                } catch (err) {
+                    if (err.name !== 'AbortError') {
+                        console.error('保存失败:', err);
+                        // 降级到传统方式
+                        fallbackSave();
+                    }
+                }
+            } else {
+                // 不支持 File System Access API，使用传统方式
+                fallbackSave();
+            }
+        }
+        
+        function fallbackSave() {
+            // 传统下载方式
             const data = { characters, relations };
             const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
             const url = URL.createObjectURL(blob);
@@ -1995,7 +2084,45 @@
             URL.revokeObjectURL(url);
         }
 
-        function loadFromFile() {
+        async function loadFromFile() {
+            // 尝试使用 File System Access API
+            if ('showOpenFilePicker' in window) {
+                try {
+                    const options = {
+                        types: [{
+                            description: 'JSON 文件',
+                            accept: { 'application/json': ['.json'] }
+                        }]
+                    };
+                    const [handle] = await window.showOpenFilePicker(options);
+                    const file = await handle.getFile();
+                    const text = await file.text();
+                    
+                    const data = JSON.parse(text);
+                    characters = data.characters || [];
+                    relations = data.relations || [];
+                    selectedChar = null;
+                    selectedAlterId = null;
+                    fileHandle = handle; // 保存文件句柄，后续可直接覆盖
+                    updateSaveButton();
+                    
+                    updateSidebar();
+                    updateRelationDetail();
+                    render();
+                    console.log(`✅ 已加载: ${file.name}`);
+                } catch (err) {
+                    if (err.name !== 'AbortError') {
+                        console.error('加载失败:', err);
+                        fallbackLoad();
+                    }
+                }
+            } else {
+                fallbackLoad();
+            }
+        }
+        
+        function fallbackLoad() {
+            // 传统文件选择方式
             const input = document.createElement('input');
             input.type = 'file';
             input.accept = '.json';
@@ -2008,6 +2135,7 @@
                         characters = data.characters || [];
                         relations = data.relations || [];
                         selectedChar = null;
+                        selectedAlterId = null;
                         updateSidebar();
                         updateRelationDetail();
                         render();
