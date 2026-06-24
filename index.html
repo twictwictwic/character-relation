@@ -936,15 +936,27 @@
                 const lineColor = rel.customColor || relType.color;
 
                 // 判断是否应该高亮显示
-                // 只有当选中人物且关系涉及当前选中的身份时才高亮
+                // 只有当选中人物且关系双方都匹配当前身份时才高亮
                 let isHighlighted = false;
                 if (selectedChar) {
+                    let charAlterId, otherAlterId;
+                    
                     if (rel.from === selectedChar.id) {
-                        const fromAlterMatch = (rel.fromAlterId || null) === selectedAlterId;
-                        isHighlighted = fromAlterMatch;
+                        charAlterId = rel.fromAlterId || null;
+                        otherAlterId = rel.toAlterId || null;
                     } else if (rel.to === selectedChar.id) {
-                        const toAlterMatch = (rel.toAlterId || null) === selectedAlterId;
-                        isHighlighted = toAlterMatch;
+                        charAlterId = rel.toAlterId || null;
+                        otherAlterId = rel.fromAlterId || null;
+                    }
+                    
+                    if (charAlterId !== undefined) {
+                        if (selectedAlterId === null) {
+                            // 本体视角：只显示双方都是本体的关系
+                            isHighlighted = charAlterId === null && otherAlterId === null;
+                        } else {
+                            // 分身视角：只显示当前分身的关系
+                            isHighlighted = charAlterId === selectedAlterId;
+                        }
                     }
                 }
 
@@ -1744,17 +1756,32 @@
             const currentAlterId = selectedAlterId;
 
             // 过滤与当前身份相关的关系
+            // 规则：from和to都必须是当前身份（本体或分身）
             const relatedRels = relations.filter(r => {
+                let charId, otherId, alterId, otherAlterId;
+                
                 if (r.from === selectedChar.id) {
-                    // 检查from的身份是否匹配
-                    const fromAlterMatch = (r.fromAlterId || null) === currentAlterId;
-                    return fromAlterMatch;
+                    charId = r.from;
+                    otherId = r.to;
+                    alterId = r.fromAlterId || null;
+                    otherAlterId = r.toAlterId || null;
                 } else if (r.to === selectedChar.id) {
-                    // 检查to的身份是否匹配
-                    const toAlterMatch = (r.toAlterId || null) === currentAlterId;
-                    return toAlterMatch;
+                    charId = r.to;
+                    otherId = r.from;
+                    alterId = r.toAlterId || null;
+                    otherAlterId = r.fromAlterId || null;
+                } else {
+                    return false;
                 }
-                return false;
+                
+                // 只匹配当前身份（本体或分身）的关系
+                // 如果当前是本体，只显示对方本体的关系
+                if (currentAlterId === null) {
+                    return alterId === null && otherAlterId === null;
+                } else {
+                    // 如果当前是分身，显示与该分身相关的关系
+                    return alterId === currentAlterId;
+                }
             });
 
             list.innerHTML = relatedRels.map(rel => {
