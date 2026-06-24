@@ -701,7 +701,7 @@
 
             <div class="btn-group">
                 <button class="btn btn-primary" onclick="openAddCharacter()">+ 人物</button>
-                <button class="btn btn-secondary" onclick="openAddRelation()">+ 关系</button>
+                <button class="btn btn-secondary" onclick="openAddRelation(selectedChar?.id || null, null)">+ 关系</button>
             </div>
 
             <div class="btn-group">
@@ -829,6 +829,11 @@
                     <label class="form-label" style="font-size: 12px;">自定义颜色</label>
                     <input type="color" id="custom-relation-color" value="#feca57" style="width: 100%; height: 30px; border: none; border-radius: 4px; cursor: pointer;">
                 </div>
+                <div style="display:flex; gap:6px; margin-top:8px; align-items:center;">
+                    <input type="text" id="custom-type-name" class="form-input" placeholder="自定义类型名称" style="flex:1; font-size:12px; padding:6px 8px;">
+                    <input type="color" id="custom-type-color" value="#a29bfe" style="width:40px;height:32px;border:none;border-radius:4px;cursor:pointer;flex-shrink:0;">
+                    <button class="btn btn-secondary" onclick="addCustomRelationType()" style="font-size:12px;padding:6px 10px;flex-shrink:0;">+ 新增</button>
+                </div>
             </div>
 
             <div class="form-group">
@@ -884,15 +889,32 @@
         ];
 
         // 关系类型
-        const relationTypes = [
-            { name: '家人', color: '#ff6b6b', style: 'solid' },
-            { name: '朋友', color: '#48dbfb', style: 'solid' },
-            { name: '恋人', color: '#ff9ff3', style: 'solid' },
-            { name: '敌人', color: '#5f27cd', style: 'dashed' },
-            { name: '同事', color: '#54a0ff', style: 'solid' },
-            { name: '师生', color: '#00d2d3', style: 'solid' },
-            { name: '其他', color: '#feca57', style: 'dashed' }
-        ];
+        let customRelationTypes = [];
+
+        function getRelationTypes() {
+            return [
+                { name: '家人', color: '#ff6b6b', style: 'solid' },
+                { name: '朋友', color: '#48dbfb', style: 'solid' },
+                { name: '恋人', color: '#ff9ff3', style: 'solid' },
+                { name: '敌人', color: '#5f27cd', style: 'dashed' },
+                { name: '同事', color: '#54a0ff', style: 'solid' },
+                { name: '师生', color: '#00d2d3', style: 'solid' },
+                { name: '其他', color: '#feca57', style: 'dashed' },
+                ...customRelationTypes
+            ];
+        }
+
+        function addCustomType(name, color) {
+            if (!name.trim()) return false;
+            const all = getRelationTypes();
+            if (all.find(t => t.name === name.trim())) return false;
+            customRelationTypes.push({ name: name.trim(), color: color || '#feca57', style: 'solid' });
+            return true;
+        }
+
+        function removeCustomType(name) {
+            customRelationTypes = customRelationTypes.filter(t => t.name !== name);
+        }
 
         // ========== Canvas 初始化 ==========
         const canvas = document.getElementById('canvas');
@@ -964,7 +986,7 @@
                 const to = characters.find(c => c.id === rel.to);
                 if (!from || !to) continue;
 
-                let relType = relationTypes.find(r => r.name === rel.type) || relationTypes[6];
+                let relType = getRelationTypes().find(r => r.name === rel.type) || relationTypes[6];
                 
                 // 如果是自定义颜色，使用自定义颜色
                 const lineColor = rel.customColor || relType.color;
@@ -1597,8 +1619,9 @@
             document.getElementById('relation-detail-ab').value = '';
             document.getElementById('relation-detail-ba').value = '';
 
+            updateRelationTypesUI();
             const typesContainer = document.getElementById('relation-types');
-            typesContainer.innerHTML = relationTypes.map((r, i) =>
+            typesContainer.innerHTML = getRelationTypes().map((r, i) =>
                 `<button class="relation-type-btn ${i === 0 ? 'selected' : ''}"
                          data-type="${r.name}"
                          onclick="selectRelationType(this)">${r.name}</button>`
@@ -1878,7 +1901,7 @@
                 const other = characters.find(c => c.id === otherId);
                 const desc = isFrom ? rel.descAB : rel.descBA;
                 const detailText = isFrom ? rel.detailAB : rel.detailBA;
-                const relType = relationTypes.find(r => r.name === rel.type) || relationTypes[6];
+                const relType = getRelationTypes().find(r => r.name === rel.type) || relationTypes[6];
 
                 // 确定对方的身份(本体还是分身)
                 const otherAlterId = isFrom ? rel.toAlterId : rel.fromAlterId;
@@ -2203,7 +2226,7 @@
             if (!fileHandle) return;
             try {
                 const writable = await fileHandle.createWritable();
-                const data = { characters, relations };
+                const data = { characters, relations, customRelationTypes };
                 await writable.write(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }));
                 await writable.close();
                 console.log('✅ 快速保存成功');
@@ -2216,7 +2239,7 @@
         }
         
         function saveToFile() {
-            const data = { characters, relations };
+            const data = { characters, relations, customRelationTypes };
             const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
             
             // 如果已有文件句柄，直接覆盖保存
@@ -2254,7 +2277,7 @@
                     };
                     fileHandle = await window.showSaveFilePicker(options);
                     const writable = await fileHandle.createWritable();
-                    const data = { characters, relations };
+                    const data = { characters, relations, customRelationTypes };
                     await writable.write(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }));
                     await writable.close();
                     console.log('✅ 已保存到新文件');
@@ -2274,7 +2297,7 @@
         
         function fallbackSave() {
             // 传统下载方式
-            const data = { characters, relations };
+            const data = { characters, relations, customRelationTypes };
             saveToRecent('character-relations.json', JSON.stringify(data));
             const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
             const url = URL.createObjectURL(blob);
@@ -2302,6 +2325,7 @@
                     const data = JSON.parse(text);
                     characters = data.characters || [];
                     relations = data.relations || [];
+                    customRelationTypes = data.customRelationTypes || [];
                     selectedChar = null;
                     selectedAlterId = null;
                     fileHandle = handle; // 保存文件句柄，后续可直接覆盖
