@@ -956,52 +956,57 @@
         }
 
         // ========== 径向居中对齐 ==========
-        function centerOnCharacter(charId) {
+                function centerOnCharacter(charId) {
             const char = characters.find(c => c.id === charId);
             if (!char) return;
 
-            // 找出与该人物本体有关系的所有人
-            const connectedIds = new Set([charId]);
-            relations.forEach(r => {
-                if (r.fromId === charId) connectedIds.add(r.toId);
-                if (r.toId === charId) connectedIds.add(r.fromId);
-            });
-
-            // 隐藏无关联的人物
-            hiddenChars = new Set();
-            characters.forEach(c => {
-                if (!connectedIds.has(c.id)) hiddenChars.add(c.id);
-            });
+            hiddenChars = new Set(); // 全部显示，不隐藏任何人
 
             const container = document.getElementById('canvas-container');
             const w = container.clientWidth;
             const h = container.clientHeight;
 
-            // 居中点击的人物
+            // 中心人物居中到画面中央
             viewOffset.x = w / 2 - char.x * zoom;
             viewOffset.y = h / 2 - char.y * zoom;
 
-            // 将有关系的人物排列成辐射状
+            // 找出与该人物有关系的所有人（用于内圈排列）
+            const connectedIds = new Set();
+            relations.forEach(r => {
+                if (r.from === charId) connectedIds.add(r.to);
+                if (r.to === charId) connectedIds.add(r.from);
+            });
+
+            // 有关系的人排成内圈（星状辐射）
             const related = characters.filter(c => c.id !== charId && connectedIds.has(c.id));
-            const radius = Math.min(w, h) * 0.32;
+            const innerRadius = Math.min(w, h) * 0.28;
+            const outerRadius = Math.min(w, h) * 0.42;
 
             related.forEach((c, i) => {
                 const n = related.length;
                 let angle;
                 if (n === 1) {
-                    angle = 0; // 右边
+                    angle = 0;
                 } else if (n === 2) {
-                    angle = Math.PI * i; // i=0:0°(右) i=1:180°(左) → 平角
+                    angle = Math.PI * i;
                 } else {
-                    angle = (2 * Math.PI * i) / n; // 0°, 120°, 240° …
+                    angle = (2 * Math.PI * i) / n;
                 }
-                c.x = char.x + radius * Math.cos(angle);
-                c.y = char.y + radius * Math.sin(angle);
+                c.x = char.x + innerRadius * Math.cos(angle);
+                c.y = char.y + innerRadius * Math.sin(angle);
+            });
+
+            // 无关系的人排在外圈（更远）
+            const unrelated = characters.filter(c => c.id !== charId && !connectedIds.has(c.id));
+            unrelated.forEach((c, i) => {
+                const n = unrelated.length || 1;
+                const baseAngle = (2 * Math.PI * i) / n + Math.PI / n; // 错开内圈角度
+                c.x = char.x + outerRadius * Math.cos(baseAngle);
+                c.y = char.y + outerRadius * Math.sin(baseAngle);
             });
 
             render();
         }
-
         function loadAvatarImage(avatarData) {
             return new Promise((resolve) => {
                 if (avatarCache.has(avatarData)) {
