@@ -65,6 +65,32 @@
             color: #ffd700;
         }
 
+        .recent-file-item {
+            padding: 8px;
+            margin: 2px 0;
+            background: rgba(255,255,255,0.05);
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .recent-file-item:hover {
+            background: rgba(255,255,255,0.1);
+        }
+        .recent-file-item .name {
+            flex: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .recent-file-item .time {
+            font-size: 10px;
+            color: rgba(255,255,255,0.4);
+            margin-left: 8px;
+            flex-shrink: 0;
+        }
         .btn-group {
             display: flex;
             gap: 10px;
@@ -682,6 +708,11 @@
                 <button class="btn btn-secondary" id="quick-save-btn" style="display:none;" onclick="quickSave()">⚡ 快速保存</button>
                 <button class="btn btn-secondary" onclick="saveToFile()">💾 另存为</button>
                 <button class="btn btn-secondary" onclick="loadFromFile()">📂 加载</button>
+                <button class="btn btn-secondary" onclick="toggleRecentFiles()">📁 最近</button>
+            </div>
+            <div id="recent-files" style="display:none; margin-top: 8px;">
+                <div class="section-title" style="font-size: 12px; margin-bottom: 4px;">最近打开的文件</div>
+                <div id="recent-list"></div>
             </div>
 
             <div class="section-title">人物列表</div>
@@ -1036,10 +1067,9 @@
                             const alter = toChar?.alterEgos?.find(a => a.id === rel.toAlterId);
                             if (alter) label += ` (${alter.name})`;
                         }
-                        // 标签靠近B端
-                        const ratio = 0.75;
-                        labelX = from.x + dx * ratio;
-                        labelY = from.y + dy * ratio;
+                        // 标签放在正中间
+                        labelX = midX + perpX;
+                        labelY = midY + perpY;
                     } else if (selectedChar.id === rel.to) {
                         // B选中，显示B对A的看法（descBA）
                         label = rel.descBA;
@@ -1048,10 +1078,9 @@
                             const alter = fromChar?.alterEgos?.find(a => a.id === rel.fromAlterId);
                             if (alter) label += ` (${alter.name})`;
                         }
-                        // 标签靠近A端
-                        const ratio = 0.25;
-                        labelX = from.x + dx * ratio;
-                        labelY = from.y + dy * ratio;
+                        // 标签放在正中间
+                        labelX = midX + perpX;
+                        labelY = midY + perpY;
                     }
                     
                     if (label) {
@@ -2090,6 +2119,72 @@
         }
 
         // ========== 存储 ==========
+        // ========== 最近文件 ==========
+        function getRecentFiles() {
+            try {
+                return JSON.parse(localStorage.getItem('recentFiles') || '[]');
+            } catch { return []; }
+        }
+        
+        function saveToRecent(name, data) {
+            let recent = getRecentFiles();
+            // 移除重复项
+            recent = recent.filter(f => f.name !== name);
+            // 添加到开头
+            recent.unshift({ name, data, time: Date.now() });
+            // 只保留最近5个
+            if (recent.length > 5) recent = recent.slice(0, 5);
+            localStorage.setItem('recentFiles', JSON.stringify(recent));
+            updateRecentList();
+        }
+        
+        function toggleRecentFiles() {
+            const el = document.getElementById('recent-files');
+            el.style.display = el.style.display === 'none' ? 'block' : 'none';
+            updateRecentList();
+        }
+        
+        function updateRecentList() {
+            const list = document.getElementById('recent-list');
+            const recent = getRecentFiles();
+            if (recent.length === 0) {
+                list.innerHTML = '<div style="color:rgba(255,255,255,0.3);font-size:12px;padding:8px;">暂无最近文件</div>';
+                return;
+            }
+            list.innerHTML = recent.map((f, i) => {
+                const time = new Date(f.time).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+                return `<div class="recent-file-item" onclick="loadRecent(${i})">
+                    <span class="name">📄 ${f.name}</span>
+                    <span class="time">${time}</span>
+                </div>`;
+            }).join('');
+        }
+        
+        function loadRecent(index) {
+            const recent = getRecentFiles();
+            if (!recent[index]) return;
+            try {
+                const data = JSON.parse(recent[index].data);
+                characters = data.characters || [];
+                relations = data.relations || [];
+                selectedChar = null;
+                selectedAlterId = null;
+                fileHandle = null;
+                updateSaveButton();
+                updateSidebar();
+                updateRelationDetail();
+                render();
+                document.getElementById('recent-files').style.display = 'none';
+                console.log(`✅ 已加载最近文件: ${recent[index].name}`);
+            } catch (err) {
+                console.error('加载最近文件失败:', err);
+                // 移除损坏的条目
+                recent.splice(index, 1);
+                localStorage.setItem('recentFiles', JSON.stringify(recent));
+                updateRecentList();
+            }
+        }
+
         let fileHandle = null; // 保存文件句柄
         
         function updateSaveButton() {
@@ -2180,6 +2275,7 @@
         function fallbackSave() {
             // 传统下载方式
             const data = { characters, relations };
+            saveToRecent('character-relations.json', JSON.stringify(data));
             const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
@@ -2214,6 +2310,7 @@
                     updateSidebar();
                     updateRelationDetail();
                     render();
+                    saveToRecent(file.name, JSON.stringify({ characters, relations }));
                     console.log(`✅ 已加载: ${file.name}`);
                 } catch (err) {
                     if (err.name !== 'AbortError') {
