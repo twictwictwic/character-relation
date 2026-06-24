@@ -1718,8 +1718,15 @@
             document.getElementById('relation-modal-title').textContent = '编辑关系';
             updateRelationPreview();
 
-            // 恢复分身选择
+            // 恢复分身选择（延时确保DOM已更新）
             setTimeout(() => {
+                // 先选择本体（默认）
+                const fromMainBtn = document.querySelector('#alter-selector-from button[data-alter-id=""]');
+                const toMainBtn = document.querySelector('#alter-selector-to button[data-alter-id=""]');
+                if (fromMainBtn) selectAlter('from', fromMainBtn);
+                if (toMainBtn) selectAlter('to', toMainBtn);
+                
+                // 如果有分身选择，覆盖本体选择
                 if (rel.fromAlterId) {
                     const fromBtn = document.querySelector(`#alter-selector-from button[data-alter-id="${rel.fromAlterId}"]`);
                     if (fromBtn) selectAlter('from', fromBtn);
