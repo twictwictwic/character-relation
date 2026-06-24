@@ -1531,12 +1531,25 @@
                 return;
             }
 
-            const exists = relations.find(r =>
-                (r.from === from && r.to === to) || (r.from === to && r.to === from)
-            );
+            // 检查是否已存在相同的身份关系（考虑分身）
+            const exists = relations.find(r => {
+                const samePersons = (r.from === from && r.to === to) || (r.from === to && r.to === from);
+                if (!samePersons) return false;
+                
+                // 检查身份组合（正向和反向都要检查）
+                const rFromAlter = r.fromAlterId || null;
+                const rToAlter = r.toAlterId || null;
+                
+                // 正向匹配：A的某个身份 -> B的某个身份
+                const forwardMatch = rFromAlter === fromAlterId && rToAlter === toAlterId;
+                // 反向匹配：B的某个身份 -> A的某个身份
+                const backwardMatch = rFromAlter === toAlterId && rToAlter === fromAlterId;
+                
+                return forwardMatch || backwardMatch;
+            });
 
             if (exists && !editingRelationId) {
-                alert('这两个人物之间已有关系');
+                alert('这两个身份之间已有关系，请选择不同的分身组合');
                 return;
             }
 
