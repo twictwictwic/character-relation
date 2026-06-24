@@ -1620,12 +1620,6 @@
             document.getElementById('relation-detail-ba').value = '';
 
             updateRelationTypesUI();
-            const typesContainer = document.getElementById('relation-types');
-            typesContainer.innerHTML = getRelationTypes().map((r, i) =>
-                `<button class="relation-type-btn ${i === 0 ? 'selected' : ''}"
-                         data-type="${r.name}"
-                         onclick="selectRelationType(this)">${r.name}</button>`
-            ).join('');
 
             document.getElementById('relation-modal-title').textContent = '添加关系';
             updateRelationPreview();
@@ -1682,6 +1676,46 @@
             } else {
                 customSection.style.display = 'none';
             }
+        }
+
+        function addCustomRelationType() {
+            const name = document.getElementById('custom-type-name').value.trim();
+            const color = document.getElementById('custom-type-color').value;
+            if (!name) { alert('请输入类型名称'); return; }
+            if (!addCustomType(name, color)) { alert('该类型已存在'); return; }
+            document.getElementById('custom-type-name').value = '';
+            document.getElementById('custom-type-name').placeholder = '✅ ' + name + ' 已添加';
+            setTimeout(() => {
+                document.getElementById('custom-type-name').placeholder = '自定义类型名称';
+            }, 2000);
+            updateRelationTypesUI();
+            // 自动选中刚添加的类型
+            const btns = document.querySelectorAll('.relation-type-btn');
+            btns.forEach(b => {
+                if (b.dataset.type === name) selectRelationType(b);
+            });
+        }
+
+        function deleteCustomType(name) {
+            if (!confirm('删除类型「' + name + '」？已有的关系不会受影响，但不再显示此类型按钮。')) return;
+            removeCustomType(name);
+            updateRelationTypesUI();
+        }
+
+        function updateRelationTypesUI() {
+            const typesContainer = document.getElementById('relation-types');
+            const allTypes = getRelationTypes();
+            const selectedType = typesContainer.querySelector('.selected');
+            const selectedName = selectedType ? selectedType.dataset.type : allTypes[0].name;
+            typesContainer.innerHTML = allTypes.map((r, i) => {
+                const isCustom = customRelationTypes.some(t => t.name === r.name);
+                return '<div style="display:inline-flex;align-items:center;margin:2px;">' +
+                    '<button class="relation-type-btn ' + (r.name === selectedName ? 'selected' : '') + '"' +
+                    ' data-type="' + r.name + '"' +
+                    ' onclick="selectRelationType(this)">' + r.name + '</button>' +
+                    (isCustom ? '<span onclick="deleteCustomType(\'' + r.name.replace(/'/g, "\\'") + '\')" style="font-size:10px;color:rgba(255,255,255,0.4);cursor:pointer;margin-left:-12px;padding:2px;" title="删除此类型">✕</span>' : '') +
+                    '</div>';
+            }).join('');
         }
 
         function saveRelation() {
@@ -1942,12 +1976,12 @@
             document.getElementById('relation-detail-ab').value = rel.detailAB || '';
             document.getElementById('relation-detail-ba').value = rel.detailBA || '';
 
-            const typesContainer = document.getElementById('relation-types');
-            typesContainer.innerHTML = getRelationTypes().map(r =>
-                `<button class="relation-type-btn ${r.name === rel.type ? 'selected' : ''}"
-                         data-type="${r.name}"
-                         onclick="selectRelationType(this)">${r.name}</button>`
-            ).join('');
+            updateRelationTypesUI();
+
+            // 选中当前关系类型
+            const allTypes = getRelationTypes();
+            const typeBtn = document.querySelector('#relation-types .relation-type-btn[data-type="' + rel.type.replace(/"/g, '') + '"]');
+            if (typeBtn) selectRelationType(typeBtn);
 
             // 恢复自定义颜色
             const customSection = document.getElementById('custom-color-section');
