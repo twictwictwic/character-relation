@@ -13,7 +13,7 @@
 
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            background: linear-gradient(135deg, #20203a 0%, #1a1a35 50%, #151530 100%);
             min-height: 100vh;
             overflow: hidden;
         }
@@ -923,6 +923,9 @@
             ctx.save();
             ctx.translate(viewOffset.x, viewOffset.y);
             ctx.scale(zoom, zoom);
+            
+            // 绘制网格背景（辅助视觉参考）
+            drawGrid();
 
             // 绘制关系线
             for (const rel of relations) {
@@ -965,6 +968,23 @@
                 const dy = to.y - from.y;
                 const dist = Math.sqrt(dx*dx + dy*dy);
                 const angle = Math.atan2(dy, dx);
+
+                // 绘制外发光轮廓（增强对比度）
+                if (isHighlighted) {
+                    ctx.save();
+                    ctx.beginPath();
+                    ctx.strokeStyle = 'rgba(255,255,255,0.25)';
+                    ctx.lineWidth = (5.5) / zoom;
+                    if (relType.style === 'dashed') {
+                        ctx.setLineDash([5, 5]);
+                    } else {
+                        ctx.setLineDash([]);
+                    }
+                    ctx.moveTo(from.x, from.y);
+                    ctx.lineTo(to.x, to.y);
+                    ctx.stroke();
+                    ctx.restore();
+                }
 
                 // 绘制主线条
                 ctx.beginPath();
@@ -1118,6 +1138,33 @@
             ctx.fillText(char.name.charAt(0), char.x, char.y);
         }
 
+        function drawGrid() {
+            const gridSize = 80;
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.03)';
+            ctx.lineWidth = 0.5 / zoom;
+            
+            const left = -viewOffset.x / zoom;
+            const top = -viewOffset.y / zoom;
+            const right = left + canvas.width / zoom;
+            const bottom = top + canvas.height / zoom;
+            
+            const startX = Math.floor(left / gridSize) * gridSize;
+            const startY = Math.floor(top / gridSize) * gridSize;
+            
+            for (let x = startX; x <= right; x += gridSize) {
+                ctx.beginPath();
+                ctx.moveTo(x, top);
+                ctx.lineTo(x, bottom);
+                ctx.stroke();
+            }
+            for (let y = startY; y <= bottom; y += gridSize) {
+                ctx.beginPath();
+                ctx.moveTo(left, y);
+                ctx.lineTo(right, y);
+                ctx.stroke();
+            }
+        }
+
         function drawArrow(x1, y1, x2, y2, color, reverse = false) {
             const headLen = 10 / zoom;
             const dx = x2 - x1;
@@ -1143,6 +1190,18 @@
                 arrowAngle = angle;
             }
 
+            // 绘制箭头外发光轮廓
+            ctx.beginPath();
+            ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+            ctx.lineWidth = 4 / zoom;
+            ctx.setLineDash([]);
+            ctx.moveTo(endX, endY);
+            ctx.lineTo(endX - headLen * Math.cos(arrowAngle - Math.PI/6), endY - headLen * Math.sin(arrowAngle - Math.PI/6));
+            ctx.moveTo(endX, endY);
+            ctx.lineTo(endX - headLen * Math.cos(arrowAngle + Math.PI/6), endY - headLen * Math.sin(arrowAngle + Math.PI/6));
+            ctx.stroke();
+
+            // 绘制箭头本体
             ctx.beginPath();
             ctx.strokeStyle = color;
             ctx.lineWidth = 2 / zoom;
