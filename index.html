@@ -956,57 +956,54 @@
         }
 
         // ========== 径向居中对齐 ==========
-                let _centerDebounce = null;
-        function centerOnCharacter(charId) {
-            if (_centerDebounce) clearTimeout(_centerDebounce);
-            _centerDebounce = setTimeout(() => {
-                _doCenterChar(charId);
-            }, 50);
-        }
-        
-        function _doCenterChar(charId) {
+                function centerOnCharacter(charId) {
             const char = characters.find(c => c.id === charId);
             if (!char) return;
 
-            hiddenChars = new Set();
+            hiddenChars = new Set(); // 全部显示，不隐藏任何人
 
             const container = document.getElementById('canvas-container');
             const w = container.clientWidth;
             const h = container.clientHeight;
 
+            // 中心人物居中到画面中央
             viewOffset.x = w / 2 - char.x * zoom;
             viewOffset.y = h / 2 - char.y * zoom;
 
+            // 找出与该人物有关系的所有人（用于内圈排列）
             const connectedIds = new Set();
             relations.forEach(r => {
                 if (r.from === charId) connectedIds.add(r.to);
                 if (r.to === charId) connectedIds.add(r.from);
             });
 
+            // 有关系的人排成内圈（星状辐射）
             const related = characters.filter(c => c.id !== charId && connectedIds.has(c.id));
-            const innerR = Math.min(w, h) * 0.30;
-            const outerR = Math.min(w, h) * 0.45;
+            const innerRadius = Math.min(w, h) * 0.28;
+            const outerRadius = Math.min(w, h) * 0.42;
 
-            // 内圈：有关系的人，均匀辐射
-            if (related.length > 0) {
-                related.forEach((c, i) => {
-                    const n = related.length;
-                    const angle = n === 1 ? 0 : (2 * Math.PI * i) / n - Math.PI / 2; // 从正上方开始
-                    c.x = char.x + innerR * Math.cos(angle);
-                    c.y = char.y + innerR * Math.sin(angle);
-                });
-            }
+            related.forEach((c, i) => {
+                const n = related.length;
+                let angle;
+                if (n === 1) {
+                    angle = 0;
+                } else if (n === 2) {
+                    angle = Math.PI * i;
+                } else {
+                    angle = (2 * Math.PI * i) / n;
+                }
+                c.x = char.x + innerRadius * Math.cos(angle);
+                c.y = char.y + innerRadius * Math.sin(angle);
+            });
 
-            // 外圈：无关系的人，错开排列
+            // 无关系的人排在外圈（更远）
             const unrelated = characters.filter(c => c.id !== charId && !connectedIds.has(c.id));
-            if (unrelated.length > 0) {
-                unrelated.forEach((c, i) => {
-                    const n = unrelated.length;
-                    const baseAngle = (2 * Math.PI * i) / n; // 从右侧开始，自然错开
-                    c.x = char.x + outerR * Math.cos(baseAngle);
-                    c.y = char.y + outerR * Math.sin(baseAngle);
-                });
-            }
+            unrelated.forEach((c, i) => {
+                const n = unrelated.length || 1;
+                const baseAngle = (2 * Math.PI * i) / n + Math.PI / n; // 错开内圈角度
+                c.x = char.x + outerRadius * Math.cos(baseAngle);
+                c.y = char.y + outerRadius * Math.sin(baseAngle);
+            });
 
             render();
         }
@@ -1173,7 +1170,7 @@
             for (const char of characters) {
                 if (hiddenChars.has(char.id)) continue;
                 const isSelected = selectedChar && selectedChar.id === char.id;
-                const radius = (isSelected ? 52 : 40) / zoom;
+                const radius = 40 / zoom;
 
                 // 光晕效果
                 if (isSelected) {
@@ -1211,7 +1208,7 @@
                 }
 
                 // 名称
-                ctx.font = `bold ${isSelected ? 16 : (14 / zoom)}px sans-serif`;
+                ctx.font = `bold ${14 / zoom}px sans-serif`;
                 ctx.fillStyle = '#fff';
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
@@ -1281,7 +1278,7 @@
             const dy = y2 - y1;
             const angle = Math.atan2(dy, dx);
 
-            const radius = (isSelected ? 52 : 40) / zoom;
+            const radius = 40 / zoom;
             const dist = Math.sqrt(dx*dx + dy*dy);
 
             // 箭头位置:正向指向终点,反向指向起点
