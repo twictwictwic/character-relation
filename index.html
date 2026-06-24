@@ -1145,17 +1145,34 @@
         function drawLabel(x, y, text, color) {
             if (!text) return;
 
-            ctx.font = `${12 / zoom}px sans-serif`;
+            // 使用更大的字体，并启用抗锯齿
+            const fontSize = Math.max(14, 14 / zoom);
+            ctx.font = `bold ${fontSize}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
+            ctx.textRenderingOptimization = 'optimizeLegibility';
+            
             const textWidth = ctx.measureText(text).width;
+            const paddingX = 12;
+            const paddingY = 10;
+            const height = fontSize + paddingY * 1.5;
 
-            // 背景
-            ctx.fillStyle = 'rgba(30, 30, 46, 0.95)';
+            // 背景 - 更明显的边框和阴影
+            ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
+            ctx.shadowBlur = 8;
+            ctx.shadowOffsetX = 2;
+            ctx.shadowOffsetY = 2;
+            ctx.fillStyle = 'rgba(20, 20, 35, 0.98)';
             ctx.beginPath();
-            ctx.roundRect(x - textWidth/2 - 8, y - 12, textWidth + 16, 24, 4 / zoom);
+            ctx.roundRect(x - textWidth/2 - paddingX, y - height/2, textWidth + paddingX * 2, height, 6 / zoom);
             ctx.fill();
+            
+            // 边框 - 使用关系线颜色
+            ctx.shadowColor = 'transparent';
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 1.5 / zoom;
+            ctx.stroke();
 
-            // 文字
-            ctx.fillStyle = color;
+            // 文字 - 白色更清晰
+            ctx.fillStyle = '#ffffff';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             ctx.fillText(text, x, y);
