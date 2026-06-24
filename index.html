@@ -860,6 +860,9 @@
         // 当前选中的分身ID(null表示本体)
         let selectedAlterId = null;
 
+        // 被隐藏的人物ID(点选人物时只显示有关系的人)
+        let hiddenChars = new Set();
+
         // 视图状态
         let viewOffset = { x: 0, y: 0 };
         let zoom = 1;
@@ -957,27 +960,41 @@
             const char = characters.find(c => c.id === charId);
             if (!char) return;
 
+            // 找出与该人物本体有关系的所有人
+            const connectedIds = new Set([charId]);
+            relations.forEach(r => {
+                if (r.fromId === charId) connectedIds.add(r.toId);
+                if (r.toId === charId) connectedIds.add(r.fromId);
+            });
+
+            // 隐藏无关联的人物
+            hiddenChars = new Set();
+            characters.forEach(c => {
+                if (!connectedIds.has(c.id)) hiddenChars.add(c.id);
+            });
+
             const container = document.getElementById('canvas-container');
             const w = container.clientWidth;
             const h = container.clientHeight;
 
-            // 计算半径：根据画面大小和人物数量自适应
-            const otherCount = characters.length - 1;
-            let radius = Math.min(w, h) * 0.35;
-            // 人少时半径大些，人多时半径小些
-            if (otherCount <= 2) radius = Math.min(w, h) * 0.25;
-            else if (otherCount >= 10) radius = Math.min(w, h) * 0.45;
-
-            // 计算世界坐标偏移,使中心人物位于画面中央
-            // screenCenter.x = char.x * zoom + viewOffset.x = w/2
-            // viewOffset.x = w/2 - char.x * zoom
+            // 居中点击的人物
             viewOffset.x = w / 2 - char.x * zoom;
             viewOffset.y = h / 2 - char.y * zoom;
 
-            // 将其他人物排列成圆形
-            const others = characters.filter(c => c.id !== charId);
-            others.forEach((c, i) => {
-                const angle = (2 * Math.PI * i) / others.length - Math.PI / 2; // 从正上方开始
+            // 将有关系的人物排列成辐射状
+            const related = characters.filter(c => c.id !== charId && connectedIds.has(c.id));
+            const radius = Math.min(w, h) * 0.32;
+
+            related.forEach((c, i) => {
+                const n = related.length;
+                let angle;
+                if (n === 1) {
+                    angle = 0; // 右边
+                } else if (n === 2) {
+                    angle = Math.PI * i; // i=0:0°(右) i=1:180°(左) → 平角
+                } else {
+                    angle = (2 * Math.PI * i) / n; // 0°, 120°, 240° …
+                }
                 c.x = char.x + radius * Math.cos(angle);
                 c.y = char.y + radius * Math.sin(angle);
             });
@@ -1146,6 +1163,7 @@
 
             // 绘制人物节点
             for (const char of characters) {
+                if (hiddenChars.has(char.id)) continue;
                 const isSelected = selectedChar && selectedChar.id === char.id;
                 const radius = 40 / zoom;
 
@@ -1362,6 +1380,7 @@
                 } else {
                     selectedChar = null;
                     selectedAlterId = null; // 取消选择时也重置
+                    hiddenChars = new Set(); // 点击空白恢复显示全部人物
                     isDragging = true;
                     dragStart = { x: mouseX - viewOffset.x, y: mouseY - viewOffset.y };
                     updateRelationDetail();
