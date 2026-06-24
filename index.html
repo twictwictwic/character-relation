@@ -968,70 +968,61 @@
                 ctx.lineTo(to.x, to.y);
                 ctx.stroke();
 
-                // 绘制箭头:双向关系,两个箭头
+                // 绘制箭头：只显示选中人物指向其他人的箭头
                 if (isHighlighted) {
-                    // A→B: A眼中的B,箭头指向B
-                    drawArrow(from.x, from.y, to.x, to.y, lineColor, false);
-                    // B→A: B眼中的A,箭头指向A
-                    drawArrow(from.x, from.y, to.x, to.y, lineColor, true);
+                    if (selectedChar.id === rel.from) {
+                        // A选中，显示A→B：A眼中的B，箭头指向B
+                        drawArrow(from.x, from.y, to.x, to.y, lineColor, false);
+                    } else if (selectedChar.id === rel.to) {
+                        // B选中，显示B→A：B眼中的A，箭头指向A
+                        // 由于关系是A到B，所以要反向绘制箭头（从B指向A）
+                        drawArrow(from.x, from.y, to.x, to.y, lineColor, true);
+                    }
                 }
 
-                // 只在选中人物时显示描述
+                // 只在选中人物时显示描述，显示选中人物对对方的看法
                 if (isHighlighted) {
                     const midX = (from.x + to.x) / 2;
                     const midY = (from.y + to.y) / 2;
 
-                    // 计算偏移:让标签分别靠近对应的箭头
+                    // 计算偏移
                     const labelOffset = 25 / zoom;
                     const perpX = -Math.sin(angle) * labelOffset;
                     const perpY = Math.cos(angle) * labelOffset;
 
-                    // 获取分身名称
-                    let fromLabel = rel.descAB;
-                    let toLabel = rel.descBA;
-
+                    // 确定显示哪个描述
+                    let label = '';
+                    let labelX = midX;
+                    let labelY = midY;
+                    
                     if (selectedChar.id === rel.from) {
-                        // 显示 from 视角:A眼中的B
-                        if (rel.fromAlterId) {
-                            const fromChar = characters.find(c => c.id === rel.from);
-                            const alter = fromChar?.alterEgos?.find(a => a.id === rel.fromAlterId);
-                            if (alter) fromLabel = `[${alter.name}] ${rel.descAB}`;
-                        }
+                        // A选中，显示A对B的看法（descAB）
+                        label = rel.descAB;
                         if (rel.toAlterId) {
                             const toChar = characters.find(c => c.id === rel.to);
                             const alter = toChar?.alterEgos?.find(a => a.id === rel.toAlterId);
-                            if (alter) toLabel = `${rel.descBA} (对${alter.name})`;
+                            if (alter) label += ` (${alter.name})`;
                         }
-                    }
-
-                    if (selectedChar.id === rel.to) {
-                        // 显示 to 视角:B眼中的A
+                        // 标签靠近B端
+                        const ratio = 0.75;
+                        labelX = from.x + dx * ratio;
+                        labelY = from.y + dy * ratio;
+                    } else if (selectedChar.id === rel.to) {
+                        // B选中，显示B对A的看法（descBA）
+                        label = rel.descBA;
                         if (rel.fromAlterId) {
                             const fromChar = characters.find(c => c.id === rel.from);
                             const alter = fromChar?.alterEgos?.find(a => a.id === rel.fromAlterId);
-                            if (alter) fromLabel = `${rel.descAB} (对${alter.name})`;
+                            if (alter) label += ` (${alter.name})`;
                         }
-                        if (rel.toAlterId) {
-                            const toChar = characters.find(c => c.id === rel.to);
-                            const alter = toChar?.alterEgos?.find(a => a.id === rel.toAlterId);
-                            if (alter) toLabel = `[${alter.name}] ${rel.descBA}`;
-                        }
+                        // 标签靠近A端
+                        const ratio = 0.25;
+                        labelX = from.x + dx * ratio;
+                        labelY = from.y + dy * ratio;
                     }
-
-                    // A眼中的B:靠近B端(箭头指向B)
-                    if (fromLabel && (selectedChar.id === rel.from || selectedChar.id === rel.to)) {
-                        const ratio = 0.7;
-                        const labelX = from.x + dx * ratio + perpX;
-                        const labelY = from.y + dy * ratio + perpY;
-                        drawLabel(labelX, labelY, fromLabel, lineColor);
-                    }
-
-                    // B眼中的A:靠近A端(箭头指向A)
-                    if (toLabel && (selectedChar.id === rel.from || selectedChar.id === rel.to)) {
-                        const ratio = 0.3;
-                        const labelX = from.x + dx * ratio - perpX;
-                        const labelY = from.y + dy * ratio - perpY;
-                        drawLabel(labelX, labelY, toLabel, lineColor);
+                    
+                    if (label) {
+                        drawLabel(labelX, labelY, label, lineColor);
                     }
                 }
             }
