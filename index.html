@@ -1181,12 +1181,14 @@
             if (currentTool === 'select') {
                 if (clicked) {
                     selectedChar = clicked;
+                    selectedAlterId = null; // 点击Canvas时重置为本体
                     dragTarget = clicked;
                     dragStart = { x: world.x - clicked.x, y: world.y - clicked.y };
                     updateSidebar();
                     updateRelationDetail();
                 } else {
                     selectedChar = null;
+                    selectedAlterId = null; // 取消选择时也重置
                     isDragging = true;
                     dragStart = { x: mouseX - viewOffset.x, y: mouseY - viewOffset.y };
                     updateRelationDetail();
