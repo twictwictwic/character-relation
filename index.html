@@ -630,6 +630,38 @@
             border-color: #667eea;
             color: #fff;
         }
+
+        /* 分身切换按钮 */
+        .alter-switcher {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+            margin-top: 8px;
+            padding-top: 8px;
+            border-top: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .alter-switch-btn {
+            padding: 5px 10px;
+            font-size: 11px;
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.15);
+            border-radius: 12px;
+            color: rgba(255,255,255,0.7);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .alter-switch-btn:hover {
+            background: rgba(255,255,255,0.1);
+            border-color: rgba(255,255,255,0.3);
+        }
+
+        .alter-switch-btn.active {
+            background: #667eea;
+            border-color: #667eea;
+            color: #fff;
+        }
     </style>
 </head>
 <body>
@@ -788,6 +820,9 @@
         let editingCharId = null;
         let editingRelationId = null;
 
+        // 当前选中的分身ID(null表示本体)
+        let selectedAlterId = null;
+
         // 视图状态
         let viewOffset = { x: 0, y: 0 };
         let zoom = 1;
@@ -895,12 +930,22 @@
                 if (!from || !to) continue;
 
                 let relType = relationTypes.find(r => r.name === rel.type) || relationTypes[6];
-
-                // 如果是自定义颜色,使用自定义颜色
+                
+                // 如果是自定义颜色，使用自定义颜色
                 const lineColor = rel.customColor || relType.color;
 
-                // 只有选中人物时才高亮显示相关关系
-                const isHighlighted = selectedChar && (rel.from === selectedChar.id || rel.to === selectedChar.id);
+                // 判断是否应该高亮显示
+                // 只有当选中人物且关系涉及当前选中的身份时才高亮
+                let isHighlighted = false;
+                if (selectedChar) {
+                    if (rel.from === selectedChar.id) {
+                        const fromAlterMatch = (rel.fromAlterId || null) === selectedAlterId;
+                        isHighlighted = fromAlterMatch;
+                    } else if (rel.to === selectedChar.id) {
+                        const toAlterMatch = (rel.toAlterId || null) === selectedAlterId;
+                        isHighlighted = toAlterMatch;
+                    }
+                }
 
                 // 计算线的角度和偏移
                 const dx = to.x - from.x;
@@ -1531,25 +1576,25 @@
                 return;
             }
 
-            // 检查是否已存在相同的身份关系（考虑分身）
+            // 检查是否已存在相同的身份关系(考虑分身)
             const exists = relations.find(r => {
                 const samePersons = (r.from === from && r.to === to) || (r.from === to && r.to === from);
                 if (!samePersons) return false;
-                
-                // 检查身份组合（正向和反向都要检查）
+
+                // 检查身份组合(正向和反向都要检查)
                 const rFromAlter = r.fromAlterId || null;
                 const rToAlter = r.toAlterId || null;
-                
-                // 正向匹配：A的某个身份 -> B的某个身份
+
+                // 正向匹配:A的某个身份 -> B的某个身份
                 const forwardMatch = rFromAlter === fromAlterId && rToAlter === toAlterId;
-                // 反向匹配：B的某个身份 -> A的某个身份
+                // 反向匹配:B的某个身份 -> A的某个身份
                 const backwardMatch = rFromAlter === toAlterId && rToAlter === fromAlterId;
-                
+
                 return forwardMatch || backwardMatch;
             });
 
             if (exists && !editingRelationId) {
-                alert('这两个身份之间已有关系，请选择不同的分身组合');
+                alert('这两个身份之间已有关系,请选择不同的分身组合');
                 return;
             }
 
@@ -1627,10 +1672,12 @@
             list.innerHTML = characters.map(c => {
                 const avatarStyle = c.avatar
                     ? `background-image: url(${c.avatar}); background-size: cover; background-position: center;`
-                    : `background: ${c.color};`;
+                    : `background: ${c.avatarBgColor || c.color};`;
                 const hasAlterEgos = c.alterEgos && c.alterEgos.length > 0;
+                const isSelected = selectedChar && selectedChar.id === c.id;
+
                 return `
-                    <div class="character-item ${selectedChar && selectedChar.id === c.id ? 'selected' : ''}"
+                    <div class="character-item ${isSelected ? 'selected' : ''}"
                          onclick="selectCharFromList('${c.id}')"
                          ondblclick="editCharacter('${c.id}')">
                         <div class="avatar-wrapper">
@@ -1641,8 +1688,14 @@
                         </div>
                         <div class="character-item-info">
                             <div class="character-name" style="color: ${c.color}">${c.name}</div>
-                            <div class="character-desc">${c.desc || '无描述'}</div>
+                            <div class="character-desc">${selectedAlterId && isSelected ? (c.alterEgos?.find(a => a.id === selectedAlterId)?.desc || c.desc) : c.desc || '无描述'}</div>
                         </div>
+                        ${isSelected && hasAlterEgos ? `
+                            <div class="alter-switcher">
+                                <button class="alter-switch-btn ${!selectedAlterId ? 'active' : ''}" onclick="event.stopPropagation(); switchAlter('${c.id}', null)">本体</button>
+                                ${c.alterEgos.map(a => `<button class="alter-switch-btn ${selectedAlterId === a.id ? 'active' : ''}" onclick="event.stopPropagation(); switchAlter('${c.id}', '${a.id}')">${a.name}</button>`).join('')}
+                            </div>
+                        ` : ''}
                     </div>
                 `;
             }).join('');
@@ -1650,9 +1703,19 @@
 
         function selectCharFromList(id) {
             selectedChar = characters.find(c => c.id === id);
+            selectedAlterId = null; // 切换人物时重置为本体
             updateSidebar();
             updateRelationDetail();
             render();
+        }
+
+        function switchAlter(charId, alterId) {
+            if (selectedChar && selectedChar.id === charId) {
+                selectedAlterId = alterId;
+                updateSidebar();
+                updateRelationDetail();
+                render();
+            }
         }
 
         function updateRelationDetail() {
@@ -1666,25 +1729,43 @@
 
             detail.classList.add('active');
 
-            const relatedRels = relations.filter(r =>
-                r.from === selectedChar.id || r.to === selectedChar.id
-            );
+            // 获取当前选中的身份(本体或分身)
+            const currentAlterId = selectedAlterId;
+
+            // 过滤与当前身份相关的关系
+            const relatedRels = relations.filter(r => {
+                if (r.from === selectedChar.id) {
+                    // 检查from的身份是否匹配
+                    const fromAlterMatch = (r.fromAlterId || null) === currentAlterId;
+                    return fromAlterMatch;
+                } else if (r.to === selectedChar.id) {
+                    // 检查to的身份是否匹配
+                    const toAlterMatch = (r.toAlterId || null) === currentAlterId;
+                    return toAlterMatch;
+                }
+                return false;
+            });
 
             list.innerHTML = relatedRels.map(rel => {
                 const isFrom = rel.from === selectedChar.id;
                 const otherId = isFrom ? rel.to : rel.from;
                 const other = characters.find(c => c.id === otherId);
                 const desc = isFrom ? rel.descAB : rel.descBA;
-                const detail = isFrom ? rel.detailAB : rel.detailBA;
+                const detailText = isFrom ? rel.detailAB : rel.detailBA;
                 const relType = relationTypes.find(r => r.name === rel.type) || relationTypes[6];
 
+                // 确定对方的身份(本体还是分身)
+                const otherAlterId = isFrom ? rel.toAlterId : rel.fromAlterId;
+                const otherAlter = other?.alterEgos?.find(a => a.id === otherAlterId);
+                const displayName = otherAlter ? `${other.name}-${otherAlter.name}` : `${other?.name || '未知'}(本体)`;
+
                 return `
-                    <div class="relation-item" onclick="editRelation('${rel.id}')" style="border-left: 3px solid ${relType.color}">
+                    <div class="relation-item" onclick="editRelation('${rel.id}')" style="border-left: 3px solid ${rel.customColor || relType.color}">
                         <div class="relation-target" style="color: ${other?.color || '#fff'}">
-                            ${other?.name || '未知'}
+                            ${displayName}
                         </div>
                         <div class="relation-desc">${desc || '无描述'}</div>
-                        ${detail ? `<div class="relation-detail-text" style="font-size: 12px; color: rgba(255,255,255,0.6); margin-top: 4px;">${detail}</div>` : ''}
+                        ${detailText ? `<div class="relation-detail-text" style="font-size: 12px; color: rgba(255,255,255,0.6); margin-top: 4px;">${detailText}</div>` : ''}
                     </div>
                 `;
             }).join('') || '<div style="color: rgba(255,255,255,0.5); font-size: 13px;">暂无关系</div>';
@@ -1718,7 +1799,7 @@
                          data-type="${r.name}"
                          onclick="selectRelationType(this)">${r.name}</button>`
             ).join('');
-            
+
             // 恢复自定义颜色
             const customSection = document.getElementById('custom-color-section');
             if (rel.type === '其他' && rel.customColor) {
@@ -1731,15 +1812,15 @@
             document.getElementById('relation-modal-title').textContent = '编辑关系';
             updateRelationPreview();
 
-            // 恢复分身选择（延时确保DOM已更新）
+            // 恢复分身选择(延时确保DOM已更新)
             setTimeout(() => {
-                // 先选择本体（默认）
+                // 先选择本体(默认)
                 const fromMainBtn = document.querySelector('#alter-selector-from button[data-alter-id=""]');
                 const toMainBtn = document.querySelector('#alter-selector-to button[data-alter-id=""]');
                 if (fromMainBtn) selectAlter('from', fromMainBtn);
                 if (toMainBtn) selectAlter('to', toMainBtn);
-                
-                // 如果有分身选择，覆盖本体选择
+
+                // 如果有分身选择,覆盖本体选择
                 if (rel.fromAlterId) {
                     const fromBtn = document.querySelector(`#alter-selector-from button[data-alter-id="${rel.fromAlterId}"]`);
                     if (fromBtn) selectAlter('from', fromBtn);
@@ -1986,10 +2067,10 @@
             updateSidebar();
             render();
         }
-        
+
         // 名字改变时更新头像预览
         document.getElementById('char-name').addEventListener('input', updateAvatarPreview);
-        
+
         initDemo();
     </script>
 </body>
