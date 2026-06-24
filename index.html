@@ -1891,7 +1891,7 @@
 
         function updateSidebar() {
             const list = document.getElementById('character-list');
-            list.innerHTML = characters.filter(c => !hiddenChars.has(c.id)).map(c => {
+            list.innerHTML = characters.map(c => {
                 const avatarStyle = c.avatar
                     ? `background-image: url(${c.avatar}); background-size: cover; background-position: center;`
                     : `background: ${c.avatarBgColor || c.color};`;
