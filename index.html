@@ -1629,6 +1629,7 @@
                     x: window.tempPos?.x || 300,
                     y: window.tempPos?.y || 300
                 });
+                hiddenChars = new Set(); // 新增人物后恢复全部显示
             }
 
             closeModal();
@@ -1890,7 +1891,7 @@
 
         function updateSidebar() {
             const list = document.getElementById('character-list');
-            list.innerHTML = characters.map(c => {
+            list.innerHTML = characters.filter(c => !hiddenChars.has(c.id)).map(c => {
                 const avatarStyle = c.avatar
                     ? `background-image: url(${c.avatar}); background-size: cover; background-position: center;`
                     : `background: ${c.avatarBgColor || c.color};`;
