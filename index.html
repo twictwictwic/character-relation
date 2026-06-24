@@ -986,7 +986,7 @@
                 const to = characters.find(c => c.id === rel.to);
                 if (!from || !to) continue;
 
-                let relType = getRelationTypes().find(r => r.name === rel.type) || relationTypes[6];
+                let relType = getRelationTypes().find(r => r.name === rel.type) || getRelationTypes()[6];
                 
                 // 如果是自定义颜色，使用自定义颜色
                 const lineColor = rel.customColor || relType.color;
@@ -1901,7 +1901,7 @@
                 const other = characters.find(c => c.id === otherId);
                 const desc = isFrom ? rel.descAB : rel.descBA;
                 const detailText = isFrom ? rel.detailAB : rel.detailBA;
-                const relType = getRelationTypes().find(r => r.name === rel.type) || relationTypes[6];
+                const relType = getRelationTypes().find(r => r.name === rel.type) || getRelationTypes()[6];
 
                 // 确定对方的身份(本体还是分身)
                 const otherAlterId = isFrom ? rel.toAlterId : rel.fromAlterId;
@@ -1943,7 +1943,7 @@
             document.getElementById('relation-detail-ba').value = rel.detailBA || '';
 
             const typesContainer = document.getElementById('relation-types');
-            typesContainer.innerHTML = relationTypes.map(r =>
+            typesContainer.innerHTML = getRelationTypes().map(r =>
                 `<button class="relation-type-btn ${r.name === rel.type ? 'selected' : ''}"
                          data-type="${r.name}"
                          onclick="selectRelationType(this)">${r.name}</button>`
@@ -2190,6 +2190,7 @@
                 const data = JSON.parse(recent[index].data);
                 characters = data.characters || [];
                 relations = data.relations || [];
+                customRelationTypes = data.customRelationTypes || [];
                 selectedChar = null;
                 selectedAlterId = null;
                 fileHandle = null;
@@ -2359,6 +2360,7 @@
                     try {
                         const data = JSON.parse(event.target.result);
                         characters = data.characters || [];
+                    customRelationTypes = data.customRelationTypes || [];
                         relations = data.relations || [];
                         selectedChar = null;
                         selectedAlterId = null;
