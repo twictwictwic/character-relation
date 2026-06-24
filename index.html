@@ -952,6 +952,39 @@
             };
         }
 
+        // ========== 径向居中对齐 ==========
+        function centerOnCharacter(charId) {
+            const char = characters.find(c => c.id === charId);
+            if (!char) return;
+
+            const container = document.getElementById('canvas-container');
+            const w = container.clientWidth;
+            const h = container.clientHeight;
+
+            // 计算半径：根据画面大小和人物数量自适应
+            const otherCount = characters.length - 1;
+            let radius = Math.min(w, h) * 0.35;
+            // 人少时半径大些，人多时半径小些
+            if (otherCount <= 2) radius = Math.min(w, h) * 0.25;
+            else if (otherCount >= 10) radius = Math.min(w, h) * 0.45;
+
+            // 计算世界坐标偏移,使中心人物位于画面中央
+            // screenCenter.x = char.x * zoom + viewOffset.x = w/2
+            // viewOffset.x = w/2 - char.x * zoom
+            viewOffset.x = w / 2 - char.x * zoom;
+            viewOffset.y = h / 2 - char.y * zoom;
+
+            // 将其他人物排列成圆形
+            const others = characters.filter(c => c.id !== charId);
+            others.forEach((c, i) => {
+                const angle = (2 * Math.PI * i) / others.length - Math.PI / 2; // 从正上方开始
+                c.x = char.x + radius * Math.cos(angle);
+                c.y = char.y + radius * Math.sin(angle);
+            });
+
+            render();
+        }
+
         function loadAvatarImage(avatarData) {
             return new Promise((resolve) => {
                 if (avatarCache.has(avatarData)) {
@@ -1325,6 +1358,7 @@
                     dragStart = { x: world.x - clicked.x, y: world.y - clicked.y };
                     updateSidebar();
                     updateRelationDetail();
+                    centerOnCharacter(clicked.id);
                 } else {
                     selectedChar = null;
                     selectedAlterId = null; // 取消选择时也重置
@@ -1874,7 +1908,7 @@
             selectedAlterId = null; // 切换人物时重置为本体
             updateSidebar();
             updateRelationDetail();
-            render();
+            centerOnCharacter(id);
         }
 
         function switchAlter(charId, alterId) {
